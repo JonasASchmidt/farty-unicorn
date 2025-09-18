@@ -56,10 +56,9 @@
   .panel h3{ margin:6px 4px 10px; font-size:14px; font-weight:900; }
   .row{ display:flex; align-items:center; gap:8px; margin:8px 0; }
   .row label{ font-weight:800; font-size:12px; flex:1 1 auto; }
-  .row select, .row input[type="range"], .row input[type="number"]{ flex:0 0 170px; }
-
-  .help{ margin-left:auto; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-weight:900; background:#0b3558; color:#fff; font-size:12px; cursor:help; position:relative; }
-  /* (No tooltip inside panel — they are portaled to body) */
+  .row input[type="range"]{ flex:1 1 auto; min-width:140px; }
+  .val{ font-size:12px; font-weight:800; min-width:52px; text-align:right; color:#1d3557; }
+  .help{ margin-left:6px; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-weight:900; background:#0b3558; color:#fff; font-size:12px; cursor:help; position:relative; }
 
   .centerCard{ position:absolute; inset:0; display:grid; place-items:center; z-index:8; }
   .card{ text-align:center; max-width:min(92%, 560px); background:var(--ui); color:var(--ink-ui); padding: 22px 24px; border-radius: 16px; box-shadow: 0 12px 30px rgba(0,0,0,.35); pointer-events:auto; }
@@ -131,7 +130,7 @@
           <div class="row">
             <label for="controlMode">Control</label>
             <select id="controlMode"><option value="hold" selected>Hold</option><option value="tap">Tap</option></select>
-            <div class="help" tabindex="0" data-tip="Hold: continuous thrust while holding.&#10;Tip: Hold feels smoother on touch; Tap is classic arcade.">?</div>
+            <div class="help" tabindex="0" data-tip="Hold: continuous thrust while holding.\nTip: Hold feels smoother on touch; Tap is classic arcade.">?</div>
           </div>
           <div class="row">
             <label for="difficulty">Difficulty</label>
@@ -141,11 +140,11 @@
               <option value="hard">Hard</option>
               <option value="custom">Custom</option>
             </select>
-            <div class="help" tabindex="0" data-tip="Preset tuning for speed, gravity, gaps & spacing.&#10;Easy = bigger gaps/slower; Hard = tighter/faster.">?</div>
+            <div class="help" tabindex="0" data-tip="Preset tuning for speed, gravity, gaps & spacing.\nEasy = bigger gaps/slower; Hard = tighter/faster.">?</div>
           </div>
           <div class="row">
             <label><input type="checkbox" id="debugOn" /> Debug mode</label>
-            <div class="help" tabindex="0" data-tip="Shows hitboxes and safe gap padding lines.&#10;Use to verify collisions feel fair.">?</div>
+            <div class="help" tabindex="0" data-tip="Shows hitboxes and safe gap padding lines.\nUse to verify collisions feel fair.">?</div>
           </div>
 
           <h3>Fine tuning</h3>
@@ -329,45 +328,51 @@ function markCustom(){
   }
 }
 
-/* ===== Tuning UI + tooltips (portaled) ===== */
+/* ===== Tuning UI + tooltips (portaled, restored sliders with readouts) ===== */
 const tuningRows = [
-  ['Scroll','spSpeed',0.6,5.0,0.1, ()=>CFG.SPEED,      v=>{CFG.SPEED=v; markCustom();},      'Horizontal scroll speed.\nHigher = faster world movement.'],
-  ['Gravity','spG',0.20,0.90,0.01, ()=>CFG.G,          v=>{CFG.G=v; markCustom();},          'Downward pull per frame.\nRaise for snappier descent.'],
-  ['Thrust','spThrust',-1.50,-0.05,0.01, ()=>CFG.THRUST, v=>{CFG.THRUST=v; markCustom();},    'Continuous push while holding (Hold mode).\nMore negative = stronger climb.'],
-  ['Flap','spFlap',-13,-4,0.1, ()=>CFG.FLAP,           v=>{CFG.FLAP=v; markCustom();},       'Impulse when tapping.\nMore negative = stronger jump.'],
-  ['UpClamp','spUpClamp',-16,-5,0.1, ()=>CFG.UP_CLAMP, v=>{CFG.UP_CLAMP=v; markCustom();},   'Max upward speed (cap).\nLimits how fast you can rise.'],
-  ['MaxFall','spMaxVy',10,26,0.1, ()=>CFG.MAX_VY,      v=>{CFG.MAX_VY=v; markCustom();},     'Max downward speed.\nControls terminal fall.'],
-  ['GapMin','spGapMin',120,600,5, ()=>CFG.GAP_MIN,     v=>{CFG.GAP_MIN=v; markCustom();},    'Minimum gap height.\nBigger = easier.'],
-  ['GapMax','spGapMax',180,720,5, ()=>CFG.GAP_MAX,     v=>{CFG.GAP_MAX=v; markCustom();},    'Maximum gap height.\nUsed to randomize variety.'],
-  ['Spacing','spSpacing',200,800,10, ()=>CFG.SPACING,  v=>{CFG.SPACING=v; markCustom();},    'Distance between walls.\nHigher = fewer walls.'],
-  ['PipeW','spPipeW',40,90,1, ()=>PIPE_W,              v=>{PIPE_W=v; markCustom();},         'Wall thickness.\nCosmetic + collision width.'],
-  ['GapPad','spGapPad',6,36,1, ()=>GAP_PAD,            v=>{GAP_PAD=v; markCustom();},        'Extra safe padding in gap.\nAvoid “invisible” hits.'],
-  ['HitW','spHitW',14,40,1, ()=>HIT_W,                 v=>{HIT_W=v; markCustom();},          'Unicorn hitbox width.\nSmaller = easier.'],
-  ['HitH','spHitH',8,28,1, ()=>HIT_H,                  v=>{HIT_H=v; markCustom();},          'Unicorn hitbox height.\nSmaller = easier.'],
-  ['Drag','spDrag',0.970,0.999,0.001, ()=>CFG.DRAG,    v=>{CFG.DRAG=v; markCustom();},       'Air resistance each frame.\nCloser to 1.0 = less damping.'],
-  ['Ease','spEase',0.05,0.60,0.01, ()=>CFG.THRUST_EASE,v=>{CFG.THRUST_EASE=v; markCustom();},'Thrust smoothing factor.\nHigher = more responsive.'],
-  ['TailLen','spTail',0.6,2.0,0.05, ()=>FART_STREAM_SCALE, v=>{FART_STREAM_SCALE=v; markCustom();}, 'Fart trail length / density.\nIncrease for longer rainbow.'],
-  ['Particles','spBudget',500,1800,50, ()=>PARTICLE_BUDGET, v=>{PARTICLE_BUDGET=v; markCustom();}, 'Particle budget (perf).\nLower for older devices.'],
-  /* beans */
-  ['BeansFreq','spBeanF',10,60,1, ()=>BEAN_FREQ, v=>{BEAN_FREQ=v; markCustom();}, 'Seconds between life crystals (max rate).'],
-  ['BeansHover','spBeanH',0,24,1, ()=>BEAN_HOVER, v=>{BEAN_HOVER=v; markCustom();}, 'Crystal hover amplitude.'],
+  ['Scroll','spSpeed',0.6,5.0,0.1, ()=>CFG.SPEED,      v=>{CFG.SPEED=v; markCustom();},      'Horizontal scroll speed.\nHigher = faster world movement.\nUse with care: affects difficulty strongly.'],
+  ['Gravity','spG',0.20,0.90,0.01, ()=>CFG.G,          v=>{CFG.G=v; markCustom();},          'Downward pull per frame.\nRaise for snappier descent.\nToo high makes hold harder.'],
+  ['Thrust','spThrust',-1.50,-0.05,0.01, ()=>CFG.THRUST, v=>{CFG.THRUST=v; markCustom();},    'Continuous push while holding (Hold mode).\nMore negative = stronger climb.\nPairs with Ease & Drag.'],
+  ['Flap','spFlap',-13,-4,0.1, ()=>CFG.FLAP,           v=>{CFG.FLAP=v; markCustom();},       'Impulse on tap/press.\nMore negative = bigger hop.\nKeep moderate for precision.'],
+  ['UpClamp','spUpClamp',-16,-5,0.1, ()=>CFG.UP_CLAMP, v=>{CFG.UP_CLAMP=v; markCustom();},   'Max upward speed cap.\nPrevents rocket zooms.\nLower (more negative) = faster rise.'],
+  ['MaxFall','spMaxVy',10,26,0.1, ()=>CFG.MAX_VY,      v=>{CFG.MAX_VY=v; markCustom();},     'Max downward speed.\nHigher = faster drops.\nImpacts recovery timing.'],
+  ['GapMin','spGapMin',120,600,5, ()=>CFG.GAP_MIN,     v=>{CFG.GAP_MIN=v; markCustom();},    'Minimum gap height.\nBigger = easier.\nCombine with GapMax.'],
+  ['GapMax','spGapMax',180,720,5, ()=>CFG.GAP_MAX,     v=>{CFG.GAP_MAX=v; markCustom();},    'Maximum gap height.\nVariety range.\nKeep > GapMin.'],
+  ['Spacing','spSpacing',200,800,10, ()=>CFG.SPACING,  v=>{CFG.SPACING=v; markCustom();},    'Distance between walls.\nHigher = fewer walls.\nImpacts pace and scoring.'],
+  ['PipeW','spPipeW',40,90,1, ()=>PIPE_W,              v=>{PIPE_W=v; markCustom();},         'Wall thickness (visual & hit).\nThicker = longer passes.\nMostly cosmetic.'],
+  ['GapPad','spGapPad',6,36,1, ()=>GAP_PAD,            v=>{GAP_PAD=v; markCustom();},        'Extra safe padding in gap.\nAvoids “invisible” hits.\nHigher = safer.'],
+  ['HitW','spHitW',14,40,1, ()=>HIT_W,                 v=>{HIT_W=v; markCustom();},          'Unicorn hitbox width.\nSmaller = easier.\nDebug mode shows it.'],
+  ['HitH','spHitH',8,28,1, ()=>HIT_H,                  v=>{HIT_H=v; markCustom();},          'Unicorn hitbox height.\nSmaller = easier.\nTune for fairness.'],
+  ['Drag','spDrag',0.970,0.999,0.001, ()=>CFG.DRAG,    v=>{CFG.DRAG=v; markCustom();},       'Air resistance.\nCloser to 1.0 = less damping.\nLower = more “syrup”.'],
+  ['Ease','spEase',0.05,0.60,0.01, ()=>CFG.THRUST_EASE,v=>{CFG.THRUST_EASE=v; markCustom();},'Thrust smoothing factor.\nHigher = quicker response.\nLower = softer feel.'],
+  ['TailLen','spTail',0.6,2.0,0.05, ()=>FART_STREAM_SCALE, v=>{FART_STREAM_SCALE=v; markCustom();}, 'Fart trail length / density.\nIncrease for longer rainbow.\nImpacts performance.'],
+  ['Particles','spBudget',500,1800,50, ()=>PARTICLE_BUDGET, v=>{PARTICLE_BUDGET=v; markCustom();}, 'Particle budget (perf).\nLower for older devices.\nKeeps frame rate healthy.'],
+  ['BeansFreq','spBeanF',10,60,1, ()=>BEAN_FREQ, v=>{BEAN_FREQ=v; markCustom();}, 'Seconds between life crystals (max rate).\nLower = more crystals.'],
+  ['BeansHover','spBeanH',0,24,1, ()=>BEAN_HOVER, v=>{BEAN_HOVER=v; markCustom();}, 'Crystal hover amplitude.\nPurely aesthetic wiggle.'],
 ];
+
 const tuningHost = document.getElementById('tuning');
 
 function addRow(label,id,min,max,step,get,set,help){
+  const decimals = (String(step).split('.')[1]||'').length;
+  const fmt = v => Number(v).toFixed(decimals);
   const row=document.createElement('div'); row.className='row';
   row.innerHTML = `
     <label for="${id}">${label}</label>
     <input id="${id}" type="range" min="${min}" max="${max}" step="${step}">
+    <output class="val" id="${id}Val">${fmt(get())}</output>
     <div class="help" tabindex="0" data-tip="${help.replace(/"/g,'&quot;')}">?</div>
   `;
   tuningHost.appendChild(row);
   const inp=row.querySelector('input');
+  const out=row.querySelector('output');
   const helpBtn=row.querySelector('.help');
-  const update=()=>{ set(parseFloat(inp.value)); };
-  inp.value=get(); inp.addEventListener('input', update);
 
-  // Tooltips as portal to <body>, fixed-position, 220px max
+  const update=()=>{ const v=parseFloat(inp.value); set(v); out.textContent=fmt(v); };
+  inp.value=get(); out.textContent=fmt(get());
+  inp.addEventListener('input', update);
+
+  // Tooltips as portal to <body>, fixed-position, clamped, instant hide
   helpBtn.addEventListener('mouseenter', ()=>showTip(helpBtn));
   helpBtn.addEventListener('focusin',   ()=>showTip(helpBtn));
   helpBtn.addEventListener('mouseleave', ()=>hideTip(helpBtn));
@@ -380,6 +385,8 @@ function syncTuningFromCfg(markAsCustom=true){
   if (markAsCustom) markCustom();
 }
 
+/* Tip portal */
+const ACTIVE_TIPS = new Set();
 function showTip(anchor){
   const text = anchor.getAttribute('data-tip') || '';
   let tip = anchor._tipEl;
@@ -405,7 +412,10 @@ function showTip(anchor){
     tip.textContent=text.replace(/\u000A/g, '\n');
     tip.style.display='block';
   }
-  // Position near anchor, clamped to viewport
+  positionTip(anchor, tip);
+  ACTIVE_TIPS.add(tip);
+}
+function positionTip(anchor, tip){
   const ar = anchor.getBoundingClientRect();
   const vw = window.innerWidth, vh = window.innerHeight;
   const tr = tip.getBoundingClientRect();
@@ -418,11 +428,13 @@ function showTip(anchor){
   tip.style.top  = y+'px';
   tip.style.opacity='1';
 }
-
 function hideTip(anchor){
   const tip = anchor._tipEl;
-  if (tip){ tip.style.display='none'; }
+  if (tip){ tip.style.display='none'; ACTIVE_TIPS.delete(tip); }
 }
+['scroll','resize'].forEach(ev=> window.addEventListener(ev, ()=>{ // keep visible tips readable
+  for (const tip of ACTIVE_TIPS){ if (tip.style.display!=='none'){ tip.style.display='none'; } }
+}));
 
 /* Panel open/close — pause when opened during play; S toggles */
 function setPaused(p){ paused=!!p; pauseTag.classList.toggle('hidden', !paused);
@@ -454,7 +466,6 @@ btnExport.addEventListener('click', async ()=>{
     await navigator.clipboard.writeText(text);
     showToast();
   }catch(_){
-    // Fallback: select a hidden textarea
     const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
     try{ document.execCommand('copy'); }catch(_){}
     document.body.removeChild(ta);
@@ -650,8 +661,8 @@ function collideWithPipe(p){
 }
 function handleCollision(pipeId){
   const nowt=performance.now();
-  if (nowt < invulnUntil) return;            // global invuln window
-  if (lastHitPipeId === pipeId) return;      // already hit this pipe during this window
+  if (nowt < invulnUntil) return;
+  if (lastHitPipeId === pipeId) return;
   lastHitPipeId = pipeId;
 
   lives=Math.max(0,lives-1); drawLives(); playCrash(); crashFlash(1.5);
@@ -709,7 +720,7 @@ function loop(){
   unicorn.y += unicorn.vy;
 
   if (unicorn.y < 10){ unicorn.y=10; unicorn.vy=0; }
-  if (unicorn.y > canvas.clientHeight-22){ unicorn.y=canvas.clientHeight-22; handleCollision(-999); } // floor “pipe id” sentinel
+  if (unicorn.y > canvas.clientHeight-22){ unicorn.y=canvas.clientHeight-22; handleCollision(-999); } // floor sentinel
 
   for (const c of bgClouds) drawBgCloud(c);
 
@@ -725,7 +736,7 @@ function loop(){
   }
   if (hitId!==null) handleCollision(hitId);
 
-  /* Beans: collect only if missing life and visible */
+  /* Beans */
   updateBeans(dt);
   for (const b of beans){
     if (b.x > -20 && b.x < W()+20) drawBean(b);
@@ -745,7 +756,7 @@ function loop(){
 
   updateParticles(); drawParticles(); updateRings(); drawUnicorn(unicorn);
 }
-reset(); loop();
+reset(); syncTuningFromCfg(); loop();
 
 /* Auto-pause on hidden */
 document.addEventListener('visibilitychange', ()=>{ if (document.hidden && running) setPaused(true); });

@@ -2,858 +2,742 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
 <title>Farty Unicorn</title>
 <style>
-  :root{ --bg:#000; --ink:#0b3558; --ink-ui:#0b3558; --ui:rgba(255,255,255,.92); --pad:8px; }
-  *{ box-sizing:border-box }
-  html,body{ height:100%; margin:0; background:var(--bg); color:#e6f2ff;
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
-  body{ display:grid; place-items:center; min-height:100dvh; }
+  :root{ --bg:#000; --ink:#e6f2ff; --ui:rgba(255,255,255,.92); --pill:#ffffff; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+  html,body{ height:100%; margin:0 }
+  body{ background:#000; color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial }
+  /* Vollflächig an Viewport anpassen */
+  #wrap{ position:fixed; inset:0; display:grid; place-items:center; }
+  canvas{ width:100vw; height:100vh; display:block; background:linear-gradient(#87d6ff,#e9f7ff 60%,#ffffff); box-shadow:0 8px 24px rgba(0,0,0,.35); border-radius:0 }
 
-  #wrap{ position:relative; overflow:hidden; }
-  canvas#game{
-    position:absolute; inset:0; z-index:0; width:100%; height:100%;
-    background: linear-gradient(#87d6ff, #e9f7ff 60%, #ffffff);
-    border-radius:0; box-shadow:0 8px 24px rgba(0,0,0,.35); display:block; touch-action:manipulation;
-  }
-  canvas#crashFX{ position:absolute; inset:0; z-index:3; pointer-events:none; display:block; }
+  /* HUD */
+  .hud{ position:fixed; inset:0; pointer-events:none }
+  .pill{ background:var(--ui); color:#0b3558; border-radius:999px; padding:8px 12px; font-weight:800; box-shadow:0 2px 8px rgba(0,0,0,.18); }
+  .scorePill{ position:fixed; top:12px; right:12px }
+  .lives{ position:fixed; top:12px; left:12px; }
+  .timePill{ position:fixed; top:12px; left:50%; transform:translateX(-50%); white-space:nowrap; }
+  .pauseTag{ position:fixed; inset:0; display:grid; place-items:center; font-weight:900; letter-spacing:.04em; pointer-events:none }
+  .pauseTag span{ display:inline-block; padding:.35em .8em; border-radius:1em; background:rgba(0,0,0,.5); color:#fff; font-size:64px }
 
-  .hud{ position:absolute; inset:0; z-index:4; pointer-events:none; }
-  .bubble{ background:var(--ui); color:var(--ink-ui); font-weight:800; border-radius:999px; box-shadow:0 2px 8px rgba(0,0,0,.18); }
+  /* Settings unten links + Audio unten rechts */
+  .topbar{ position:fixed; bottom:10px; left:10px; z-index:5; display:flex; gap:8px; pointer-events:auto }
+  .gear,.audioBtn,.btn{ appearance:none; border:none; border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.25); padding:8px 10px; font-size:16px; cursor:pointer }
+  .audioBtn{ position:fixed; bottom:10px; right:10px }
 
-  .lives{ position:absolute; top:12px; left:12px; display:flex; gap:6px; align-items:center; z-index:4; }
-  .lives .heart{ font-size:20px; line-height:1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
-
-  .topCenter{ position:absolute; top:12px; left:50%; transform:translateX(-50%); }
-  .timer{ padding:6px 12px; font-weight:900; text-align:center; max-width:min(92vw, 680px); white-space:normal; }
-  .midDot{ opacity:.65; padding:0 6px }
-  .statsRight{ position:absolute; top:12px; right:12px; }
-  .scoreWrap{ display:flex; gap:8px; align-items:center; padding:6px 12px; }
-
-  .pauseTag{
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    background:rgba(0,0,0,.65); color:#fff; font-weight:900; letter-spacing:.08em;
-    padding:22px 26px; border-radius:18px; box-shadow:0 4px 16px rgba(0,0,0,.35);
-    font-size:42px; pointer-events:none; z-index:4;
-  }
-  .hidden{ display:none }
-
-  .bottomLeft{ position:absolute; bottom:var(--pad); left:var(--pad); display:flex; gap:8px; z-index:6; pointer-events:auto; }
-  .bottomRight{ position:absolute; bottom:var(--pad); right:var(--pad); display:flex; gap:8px; z-index:6; pointer-events:auto; }
-  .btn{ appearance:none; border:none; cursor:pointer; border-radius:12px; background:#fff; color:#0b3558; padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,.25); font-weight:800; font-size:16px; }
-  .btnIcon{ width:40px; height:40px; display:grid; place-items:center; font-size:18px; }
-
-  .panel{
-    position:absolute; bottom:calc(40px + var(--pad)*2 + 6px); left:var(--pad);
-    background:var(--ui); color:var(--ink-ui);
-    border-radius:14px; padding:12px; box-shadow:0 10px 30px rgba(0,0,0,.35);
-    width:min(380px, 92vw);
-    max-height: calc(100vh - 140px);
-    overflow:auto; z-index:7; pointer-events:auto;
-  }
+  /* Panel: einspaltig, scrollfähig, max so hoch wie Viewport minus HUD-Ränder */
+  .panel{ position:fixed; bottom:56px; left:10px; right:auto; max-height:calc(100vh - 120px); overflow:auto;
+          pointer-events:auto; background:var(--ui); color:#0b3558; border-radius:14px; padding:12px; box-shadow:0 10px 30px rgba(0,0,0,.3); width:min(360px,90vw) }
   .panel.hidden{ display:none }
-  .panel h3{ margin:6px 4px 10px; font-size:14px; font-weight:900; }
-  .row{ display:flex; align-items:center; gap:8px; margin:8px 0; }
-  .row label{ font-weight:800; font-size:12px; flex:1 1 auto; }
-  .row input[type="range"]{ flex:1 1 auto; min-width:140px; }
-  .val{ font-size:12px; font-weight:800; min-width:52px; text-align:right; color:#1d3557; }
-  .help{ margin-left:6px; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-weight:900; background:#0b3558; color:#fff; font-size:12px; cursor:help; position:relative; }
+  .panel h4{ margin:8px 0 6px; font-size:12px; opacity:.8 }
+  .row{ display:flex; align-items:center; gap:8px; margin:6px 0; flex-wrap:wrap }
+  label{ font-weight:700; font-size:12px }
+  select{ appearance:none; padding:6px 10px; border-radius:10px; border:1px solid #cfe5ff; background:#fff; font-weight:700; font-size:12px }
+  .pair{ display:flex; align-items:center; justify-content:space-between; gap:8px; width:100% }
+  .pair input[type=range]{ width:200px }
+  .pair b{ min-width:52px; text-align:right; font-size:11px }
+  .help{ position:relative; width:18px; height:18px; display:inline-grid; place-items:center; background:#0b3558; color:#fff;
+         border-radius:50%; font-size:12px; cursor:help; margin-left:6px }
+  .tip{ position:absolute; z-index:20; inset:auto auto auto 120%; transform:translateY(-30%); width:220px;
+        background:#0b3558; color:#e6f2ff; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.35; box-shadow:0 8px 22px rgba(0,0,0,.35); display:none }
+  .help:hover .tip{ display:block }
+  .help.edge .tip{ left:auto; right:120%; transform:translateY(-30%) }
 
-  .centerCard{ position:absolute; inset:0; display:grid; place-items:center; z-index:8; }
-  .card{ text-align:center; max-width:min(92%, 560px); background:var(--ui); color:var(--ink-ui); padding: 22px 24px; border-radius: 16px; box-shadow: 0 12px 30px rgba(0,0,0,.35); pointer-events:auto; }
-  .title{ font-size:60px; font-weight:900; line-height:1.0; margin:0 0 10px; }
-  .title .tt{
-    background: linear-gradient(90deg, #ff004c, #ff8a00, #ffe600, #41e66b, #00c2ff, #6a00ff, #ff41f3);
-    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:hueSlide 10s linear infinite;
-  }
-  @keyframes hueSlide{ 0%{background-position:0 0} 100%{background-position:100% 0} }
+  /* Start & Game Over */
+  .centerCard{ position:fixed; inset:0; display:grid; place-items:center; z-index:2; pointer-events:none }
+  .card{ pointer-events:auto; text-align:center; max-width:min(92vw,720px); background:transparent; color:#0b3558;
+         padding: 24px 22px 24px; border-radius:16px; }
+  .title{ display:inline-block; font-size:60px; font-weight:900; line-height:1.15; margin:0 0 16px;
+          background:linear-gradient(90deg,#ff004c,#ff8a00,#ffe600,#41e66b,#00c2ff,#6a00ff,#ff41f3);
+          -webkit-background-clip:text; background-clip:text; color:transparent; background-size:300% 100%; animation:shine 10s linear infinite; }
+  @keyframes shine{ 0%{background-position:0 0} 100%{background-position:100% 0} }
+  .sub{ margin: 140px 10px 0; opacity:.95; font-size:20px; font-weight:700 } /* 140px Platz für Farty */
+  .sub b{ font-weight:900 }
+  .hidden{ display:none }
+  .goBig{ position:fixed; inset:0; display:grid; place-items:center; pointer-events:none; font-size:64px; font-weight:900;
+          background:transparent; opacity:0; transition:opacity .25s ease; z-index:3 }
+  .goBig span{ background:linear-gradient(90deg,#ff004c,#ff8a00,#ffe600,#41e66b,#00c2ff,#6a00ff,#ff41f3);
+               -webkit-background-clip:text; background-clip:text; color:transparent; background-size:300% 100%; animation:shine 8s linear infinite }
 
-  #uPrev{ display:block; margin:6px auto 12px; width:min(220px, 70%); height:auto; }
-  .sub{ margin:0 6px 0; opacity:.95; font-size:16px; font-weight:400; }
-  .sub + .sub{ margin-top:10px; }
-
-  .debugTag{ position:absolute; bottom:12px; right:12px; padding:6px 10px; border-radius:10px; background:rgba(0,0,0,.35); color:#41e66b; font-weight:800; font-size:12px; display:none; z-index:9; }
+  .debugTag{ position:fixed; bottom:12px; right:12px; padding:6px 10px; border-radius:10px; background:rgba(0,0,0,.35); color:#41e66b; font-weight:800; font-size:12px; display:none }
   .debugOn .debugTag{ display:block }
 
-  .goBig{
-    position:absolute; inset:0; display:grid; place-items:center; z-index:6; pointer-events:none;
-    font-size:72px; font-weight:900; line-height:1.15; text-align:center; padding:12px; white-space:normal; word-break:break-word;
-    background: linear-gradient(90deg, #ff004c, #ff8a00, #ffe600, #41e66b, #00c2ff, #6a00ff, #ff41f3);
-    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation: hueSlide 8s linear infinite;
-    opacity:0; transition: opacity .25s ease;
-  }
-  .goBig.show{ opacity:1; }
-  .fh{ position:absolute; width:24px; height:24px; transform:translate(-50%,-50%); pointer-events:none; z-index:9; }
-
-  .toast{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#0b3558; color:#fff; font-weight:800; padding:10px 14px; border-radius:12px; box-shadow:0 8px 18px rgba(0,0,0,.35); opacity:0; transition:opacity .12s ease, transform .12s ease; z-index:9999; }
-  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+  html,body,#wrap,.hud,canvas,.card{ user-select:none; -webkit-user-select:none; }
 </style>
 </head>
 <body>
   <div id="wrap" aria-label="Farty Unicorn game" role="application">
     <canvas id="game" width="360" height="640" aria-hidden="true"></canvas>
-    <canvas id="crashFX" aria-hidden="true"></canvas>
 
     <div class="hud" aria-live="polite">
-      <div class="lives" id="lives"></div>
+      <div class="lives pill" id="lives">❤️❤️❤️</div>
+      <div class="timePill pill" id="timePill">⏱️ 00:00.0 · Farting 00:00.0 💨</div>
+      <div class="scorePill pill" id="scorePill">Gaps 0 · Best 0</div>
+      <div class="pauseTag hidden" id="pauseTag"><span>PAUSE</span></div>
 
-      <div class="topCenter">
-        <div class="bubble timer" id="timerBubble">⏱️ <span id="runtime">00:00.0</span><span class="midDot">·</span>Farting <span id="farttime">00:00.0</span> 💨</div>
+      <!-- Settings + Audio -->
+      <div class="topbar">
+        <button class="gear" id="gearBtn" aria-haspopup="true" aria-expanded="false" title="Settings (S)">⚙️</button>
       </div>
+      <button class="audioBtn" id="audioBtn" title="Audio (A)">🔇</button>
 
-      <div class="statsRight">
-        <div class="bubble scoreWrap" id="scoreBubble">
-          <span>Gaps&nbsp;<span id="score">0</span></span>
-          <span class="midDot">·</span>
-          <span>Best&nbsp;<span id="best">0</span></span>
+      <!-- Panel (einspaltig, alle Slider wieder da) -->
+      <div class="panel hidden" id="settingsPanel" role="dialog" aria-label="Settings & Debug">
+        <h4>Gameplay</h4>
+        <div class="row">
+          <label for="controlMode">Steuerung</label>
+          <select id="controlMode"><option value="hold" selected>Hold</option><option value="tap">Tap</option></select>
+        </div>
+        <div class="row">
+          <label for="difficulty">Difficulty</label>
+          <select id="difficulty">
+            <option value="easy" selected>Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+
+        <h4>Fine tuning</h4>
+        <!-- Slider + Tooltips -->
+        <div class="row pair"><label>Scroll <span class="help">?<span class="tip">Horizontale Weltgeschwindigkeit. Höher = schneller. Zu hoch macht das Spiel schwerer.</span></span></label><input id="spSpeed" type="range" min="0.6" max="5.5" step="0.1"><b id="spSpeedVal"></b></div>
+        <div class="row pair"><label>Gravity <span class="help">?<span class="tip">Schwerkraft nach unten. Höher = stärkeres Fallen. Feintuning mit Thrust & Drag.</span></span></label><input id="spG" type="range" min="0.20" max="1.00" step="0.01"><b id="spGVal"></b></div>
+        <div class="row pair"><label>Thrust <span class="help">?<span class="tip">Kontinuierlicher Schub beim Halten. Stärker = mehr Auftrieb. Zu hoch → zappelig.</span></span></label><input id="spThrust" type="range" min="-1.60" max="-0.05" step="0.01"><b id="spThrustVal"></b></div>
+        <div class="row pair"><label>Flap <span class="help">?<span class="tip">Impuls beim kurzen Tippen/SPACE. Je negativer, desto kräftiger der Hüpfer.</span></span></label><input id="spFlap" type="range" min="-13" max="-4" step="0.1"><b id="spFlapVal"></b></div>
+        <div class="row pair"><label>UpClamp <span class="help">?<span class="tip">Obergrenze für Aufwärtsgeschwindigkeit (negativ). Verhindert zu starke Steigflüge.</span></span></label><input id="spUpClamp" type="range" min="-16" max="-5" step="0.1"><b id="spUpClampVal"></b></div>
+        <div class="row pair"><label>MaxFall <span class="help">?<span class="tip">Maximale Fallgeschwindigkeit. Höher = schneller nach unten.</span></span></label><input id="spMaxVy" type="range" min="10" max="26" step="0.1"><b id="spMaxVyVal"></b></div>
+        <div class="row pair"><label>GapMin <span class="help">?<span class="tip">Kleinste Lücke zwischen Wolken. Kleiner = schwerer.</span></span></label><input id="spGapMin" type="range" min="120" max="600" step="5"><b id="spGapMinVal"></b></div>
+        <div class="row pair"><label>GapMax <span class="help">?<span class="tip">Größte Lücke. Bestimmt die Varianz der Passagen.</span></span></label><input id="spGapMax" type="range" min="180" max="720" step="5"><b id="spGapMaxVal"></b></div>
+        <div class="row pair"><label>Spacing <span class="help">?<span class="tip">Abstand zwischen Hindernissen. Kleiner = dichter, schnelleres Reaktionsspiel.</span></span></label><input id="spSpacing" type="range" min="200" max="800" step="10"><b id="spSpacingVal"></b></div>
+        <div class="row pair"><label>PipeW <span class="help">?<span class="tip">Wolkenwand-Breite. Breitere Wände sind länger im Bild.</span></span></label><input id="spPipeW" type="range" min="40" max="90" step="1"><b id="spPipeWVal"></b></div>
+        <div class="row pair"><label>GapPad <span class="help">?<span class="tip">Sicherheitsrand im Gap. Höher = gutmütigere Hitbox an Gap-Grenzen.</span></span></label><input id="spGapPad" type="range" min="6" max="36" step="1"><b id="spGapPadVal"></b></div>
+        <div class="row pair"><label>HitW <span class="help">?<span class="tip">Hitbox-Breite des Einhorns (sichtbar im Debug-Modus). Kleiner = fairer.</span></span></label><input id="spHitW" type="range" min="14" max="40" step="1"><b id="spHitWVal"></b></div>
+        <div class="row pair"><label>HitH <span class="help">?<span class="tip">Hitbox-Höhe des Einhorns. Kleiner = fairer.</span></span></label><input id="spHitH" type="range" min="8" max="28" step="1"><b id="spHitHVal"></b></div>
+        <div class="row pair"><label>Drag <span class="help">?<span class="tip">Luftwiderstand (Dämpfung). Niedriger = agiler, schnelleres Reagieren.</span></span></label><input id="spDrag" type="range" min="0.960" max="0.998" step="0.001"><b id="spDragVal"></b></div>
+        <div class="row pair"><label>Ease <span class="help">?<span class="tip">Glättung für Halte-Schub. Niedriger = direkter; höher = weicher.</span></span></label><input id="spEase" type="range" min="0.05" max="0.45" step="0.01"><b id="spEaseVal"></b></div>
+
+        <div class="row" style="justify-content:flex-end; gap:8px;">
+          <button class="btn" id="exportBtn" title="Copy settings JSON">⬇️ Export</button>
         </div>
       </div>
 
-      <div class="pauseTag hidden" id="pauseTag">PAUSE</div>
-      <div class="goBig hidden" id="goBig" aria-hidden="true">Game<br/>Over</div>
-
-      <div class="bottomLeft">
-        <button class="btn btnIcon" id="gearBtn" aria-haspopup="true" aria-expanded="false" title="Settings (S)">⚙️</button>
-        <div class="panel hidden" id="settingsPanel" role="dialog" aria-label="Settings & Debug">
-          <h3>Gameplay</h3>
-          <div class="row">
-            <label for="controlMode">Control</label>
-            <select id="controlMode"><option value="hold" selected>Hold</option><option value="tap">Tap</option></select>
-            <div class="help" tabindex="0" data-tip="Hold = kontinuierlicher Schub beim Halten. Tap = Impuls pro Tipp.
-Tipp: Hold ist auf Touch präziser, Tap ist klassisch-arcadig.">?</div>
-          </div>
-          <div class="row">
-            <label for="difficulty">Difficulty</label>
-            <select id="difficulty">
-              <option value="easy" selected>Easy</option>
-              <option value="normal">Normal</option>
-              <option value="hard">Hard</option>
-              <option value="custom">Custom</option>
-            </select>
-            <div class="help" tabindex="0" data-tip="Voreinstellungen für Tempo, Gravitation, Lücken & Abstände.
-Easy = größere Lücken/langsamer, Hard = enger/schneller.">?</div>
-          </div>
-          <div class="row">
-            <label><input type="checkbox" id="debugOn" /> Debug mode</label>
-            <div class="help" tabindex="0" data-tip="Zeigt Hitboxen & Sicherheitslinien.
-Nutze es, wenn dir Kollisionen unfair vorkommen.">?</div>
-          </div>
-
-          <h3>Fine tuning</h3>
-          <div id="tuning"></div>
-
-          <div class="row" style="justify-content:flex-end; margin-top:12px;">
-            <button class="btn" id="btnExport">Export settings</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="bottomRight">
-        <button class="btn btnIcon" id="soundBtn" title="Toggle sound (A)">🔇</button>
-      </div>
-
-      <!-- Start overlay WITHOUT button -->
+      <!-- Start & Game Over Overlay -->
       <div class="centerCard" id="overlay">
-        <div class="card">
-          <p class="title"><span class="tt">Farty Unicorn</span></p>
-          <canvas id="uPrev" width="220" height="150"></canvas>
-          <p class="sub" id="startLine1"></p>
-          <p class="sub" id="startLine2"></p>
+        <div class="card" id="startCard">
+          <p class="title" id="title">Farty Unicorn</p>
+          <p class="sub" id="startSub"></p>
         </div>
       </div>
 
+      <div class="goBig hidden" id="goBig"><span>Game Over</span></div>
       <div class="debugTag" id="debugTag">DEBUG</div>
     </div>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite">Settings copied to clipboard!</div>
+  <!-- Audio -->
+  <audio id="sndThrust" preload="auto" loop crossorigin="anonymous">
+    <source src="https://cdn.pixabay.com/download/audio/2022/08/11/08-10-59-83359.mp3?filename=fart-noises-83359.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="sndOuch" preload="auto" crossorigin="anonymous">
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/10-21-20-39978.mp3?filename=ouch-1-39978.mp3" type="audio/mpeg">
+  </audio>
 
 <script>
 (function(){
 'use strict';
+/* ========= Boot logging ========= */
+const log = (...a)=>console.log('[Farty]', ...a);
 
-/* ===== DOM & CTX ===== */
+/* ========= DOM refs ========= */
 const wrap = document.getElementById('wrap');
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', { alpha:false });
+const ctx = canvas.getContext('2d');
 
 const overlay = document.getElementById('overlay');
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
-const livesEl = document.getElementById('lives');
-const runtimeSpan = document.getElementById('runtime');
-const farttimeSpan = document.getElementById('farttime');
-const pauseTag = document.getElementById('pauseTag');
-const goBig = document.getElementById('goBig');
+const startCard = document.getElementById('startCard');
+const startSub = document.getElementById('startSub');
 
-const crashFX = document.getElementById('crashFX');
-const crashCtx = crashFX.getContext('2d', { alpha:true });
+const livesEl = document.getElementById('lives');
+const timePill = document.getElementById('timePill');
+const scorePill = document.getElementById('scorePill');
+const pauseTag = document.getElementById('pauseTag');
 
 const gearBtn = document.getElementById('gearBtn');
+const audioBtn = document.getElementById('audioBtn');
 const panel = document.getElementById('settingsPanel');
-const debugChk = document.getElementById('debugOn');
-const debugTag = document.getElementById('debugTag');
-const modeSel = document.getElementById('controlMode');
-const difficultySel = document.getElementById('difficulty');
-const soundBtn = document.getElementById('soundBtn');
-const btnExport = document.getElementById('btnExport');
-const toast = document.getElementById('toast');
+const exportBtn = document.getElementById('exportBtn');
 
-const startLine1 = document.getElementById('startLine1');
-const startLine2 = document.getElementById('startLine2');
-const uPrev = document.getElementById('uPrev');
-const uctx = uPrev.getContext('2d');
+const goBig = document.getElementById('goBig');
 
-/* ===== Viewport fit ===== */
-function vp(){
-  const vv = window.visualViewport;
-  return {
-    vw: Math.floor(vv?.width  || document.documentElement.clientWidth  || window.innerWidth),
-    vh: Math.floor(vv?.height || document.documentElement.clientHeight || window.innerHeight)
-  };
-}
-function targetAspect(vw,vh){ return (vw>=vh) ? (16/9) : (9/16); }
-function computeSize(){
-  const {vw,vh} = vp();
-  const a = targetAspect(vw,vh);
-  const hA = Math.floor(vw / a);
-  const wB = Math.floor(vh * a);
-  let w,h;
-  if (hA <= vh){ w = vw; h = hA; } else { w = wB; h = vh; }
-  return { w, h };
-}
+/* ========= Texts: mobile/desktop ========= */
+const isTouch = matchMedia('(pointer:coarse)').matches;
+startSub.textContent = isTouch
+  ? 'Tap screen repeatedly or hold, take off and fly ...\nPress P for pause, S for Settings and A for Audio.'
+  : 'Press SPACE repeatedly or hold, to take off and fly ...\nPress P for pause, S for Settings and A for Audio.';
+
+/* ========= Fit to viewport ========= */
 function resizeForDPR(){
-  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio||1));
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
-  canvas.width  = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
+  canvas.width = Math.round(cssW*dpr);
+  canvas.height = Math.round(cssH*dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0);
-
-  crashFX.style.width = '100%';
-  crashFX.style.height = '100%';
-  crashFX.width  = Math.round(cssW * dpr);
-  crashFX.height = Math.round(cssH * dpr);
-  crashCtx.setTransform(dpr,0,0,dpr,0,0);
 }
-let VIEW = { SPEED:1, THRUST:1, GRAV:1, SPACING:1, GAP_ADD:0, PIPE_W:1, landscape:false };
-function computeViewTuning(){
-  const {vw,vh} = vp(); const land = vw>=vh; VIEW.landscape = land;
-  if (land){ VIEW.SPEED=1.20; VIEW.THRUST=1.05; VIEW.GRAV=1.00; VIEW.SPACING=1.03; VIEW.GAP_ADD=10; VIEW.PIPE_W=1.03; }
-  else     { VIEW.SPEED=1.00; VIEW.THRUST=1.00; VIEW.GRAV=1.00; VIEW.SPACING=1.00; VIEW.GAP_ADD=0;  VIEW.PIPE_W=1.00; }
-}
-let _fitRAF=0;
 function fit(){
-  const {w,h} = computeSize();
-  wrap.style.width  = w + 'px';
-  wrap.style.height = h + 'px';
+  canvas.style.width = '100vw';
+  canvas.style.height = '100vh';
   resizeForDPR();
   computeViewTuning();
+  positionUnicornForStart(); // parkt Farty zwischen Titel & Sub
 }
-function scheduleFit(){ cancelAnimationFrame(_fitRAF); _fitRAF = requestAnimationFrame(fit); }
-const roDoc = new ResizeObserver(scheduleFit);
-roDoc.observe(document.documentElement);
-const roWrap = new ResizeObserver(scheduleFit);
-roWrap.observe(wrap);
-window.addEventListener('resize', scheduleFit, {passive:true});
-window.addEventListener('orientationchange', scheduleFit);
-if (window.visualViewport){
-  window.visualViewport.addEventListener('resize', scheduleFit);
-  window.visualViewport.addEventListener('scroll', scheduleFit);
-}
-fit(); requestAnimationFrame(fit);
+new ResizeObserver(fit).observe(document.body);
+window.addEventListener('resize', fit, {passive:true});
+window.addEventListener('orientationchange', fit, {passive:true});
 
-/* ===== Utils/Config/State ===== */
-const W=()=>canvas.clientWidth, H=()=>canvas.clientHeight;
-const LS = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null? d:v; }catch(_){ return d; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(_){ } }, del(k){ try{ localStorage.removeItem(k); }catch(_){ } } };
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-function rand(a,b){ return a + Math.random()*(b-a); }
-function fmtTime(ms){ const t=Math.max(0,ms|0); const s=t/1000; const m=Math.floor(s/60); const sec=s%60; return `${String(m).padStart(2,'0')}:${sec.toFixed(1).padStart(4,'0')}`; }
-function isNum(n){ return Number.isFinite(n); }
-
-/* ===== Faster, more agile defaults ===== */
-const PRESETS = {
-  easy:   { G:0.50, FLAP:-9.5, THRUST:-1.10, KICK:-2.2, MAX_VY:20.0, GAP_MIN:280, GAP_MAX:380, SPACING:340, SPEED:5.6, THRUST_EASE:0.42, DRAG:0.995, UP_CLAMP:-14.0 },
-  normal: { G:0.58, FLAP:-10.2, THRUST:-1.25, KICK:-2.4, MAX_VY:23.0, GAP_MIN:230, GAP_MAX:310, SPACING:300, SPEED:6.4, THRUST_EASE:0.40, DRAG:0.996, UP_CLAMP:-15.0 },
-  hard:   { G:0.64, FLAP:-11.0, THRUST:-1.40, KICK:-2.6, MAX_VY:26.0, GAP_MIN:190, GAP_MAX:260, SPACING:270, SPEED:7.4, THRUST_EASE:0.36, DRAG:0.997, UP_CLAMP:-16.0 }
+/* ========= Persist ========= */
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v==null? d:JSON.parse(v); }catch(_){ return d } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){ } },
+  del(k){ try{ localStorage.removeItem(k) }catch(_){ } }
 };
-let CFG = { ...PRESETS[LS.get('fu_difficulty','easy')] };
-let CONTROL_MODE = LS.get('fu_control','hold');
 
+/* ========= Presets (agiler) ========= */
+const PRESETS = {
+  easy:   { G:0.44, FLAP:-6.4, THRUST:-0.70, KICK:-1.8, MAX_VY:16.0, GAP_MIN:260, GAP_MAX:360, SPACING:360, SPEED:2.6, THRUST_EASE:0.22, DRAG:0.979, UP_CLAMP:-9.2 },
+  normal: { G:0.52, FLAP:-7.1, THRUST:-0.86, KICK:-2.0, MAX_VY:18.5, GAP_MIN:220, GAP_MAX:310, SPACING:330, SPEED:3.2, THRUST_EASE:0.20, DRAG:0.985, UP_CLAMP:-10.0 },
+  hard:   { G:0.60, FLAP:-7.8, THRUST:-1.05, KICK:-2.2, MAX_VY:21.5, GAP_MIN:190, GAP_MAX:270, SPACING:300, SPEED:3.8, THRUST_EASE:0.18, DRAG:0.988, UP_CLAMP:-11.0 },
+};
+
+let cfg = PRESETS.easy; // default
 let PIPE_W=54, GAP_PAD=18, HIT_W=26, HIT_H=16;
 
-/* perf & tail parameters */
-let PARTICLE_BUDGET=1100, FART_STREAM_SCALE=1.2;
+const storedDiff = LS.get('fu_difficulty','easy');
+const saved = LS.get('fu_custom', null);
+if (storedDiff==='custom' && saved && saved.CFG){
+  const vals = Object.values(saved.CFG);
+  if (!vals.length || vals.some(v=>!isFinite(v))) {
+    log('Corrupt custom settings → fallback to easy');
+    LS.del('fu_custom'); LS.set('fu_difficulty','easy');
+    cfg = PRESETS.easy;
+  } else {
+    cfg = saved.CFG;
+    PIPE_W = saved.PIPE_W ?? PIPE_W;
+    GAP_PAD = saved.GAP_PAD ?? GAP_PAD;
+    HIT_W = saved.HIT_W ?? HIT_W;
+    HIT_H = saved.HIT_H ?? HIT_H;
+  }
+} else if (PRESETS[storedDiff]) {
+  cfg = PRESETS[storedDiff];
+}
 
-/* beans (life pickups) */
-let lastBeanAt=0, BEAN_FREQ=25, BEAN_HOVER=10, BEANS_ON=true;
+/* ========= UI selects & sliders ========= */
+const $ = (id)=>document.getElementById(id);
+const difficultySel = $('difficulty'), modeSel = $('controlMode');
 
-let unicorn, pipes=[], particles=[], rings=[], bgClouds=[], beans=[];
-let score=0, best=Number(LS.get('fu_best','0'))||0;
-let running=false, started=false, paused=false, thrusting=false, spaceDown=false, pointerDown=false;
-let thrustAcc=0;
-let lives=3, maxLives=3, invulnUntil=0;
-let runtimeMs=0, fartMsAccum=0, fartingNow=false;
-let dying=false, dieT=0;
-let flyHearts=[];
+function setDifficulty(val){
+  difficultySel.value = val;
+  LS.set('fu_difficulty', val);
+}
+if (difficultySel) difficultySel.value = LS.get('fu_difficulty','easy');
+let CONTROL_MODE = LS.get('fu_control','hold'); if (modeSel) modeSel.value = CONTROL_MODE;
 
-/* collision memory */
-let lastHitPipeId = -1;
+function onSlider(id, get, set, fmt){
+  const inp=$(id), ro=$(id+'Val'); if(!inp||!ro) return;
+  const upd=()=>{ const val=parseFloat(inp.value); set(val); ro.textContent=fmt(val); markCustom(); persistCustom(); };
+  inp.addEventListener('input', upd);
+  inp.value = get(); ro.textContent = fmt(get());
+}
+function syncSliders(){
+  onSlider('spSpeed',  ()=>cfg.SPEED,      v=>cfg.SPEED=v,      v=>v.toFixed(1));
+  onSlider('spG',      ()=>cfg.G,          v=>cfg.G=v,          v=>v.toFixed(2));
+  onSlider('spThrust', ()=>cfg.THRUST,     v=>cfg.THRUST=v,     v=>v.toFixed(2));
+  onSlider('spFlap',   ()=>cfg.FLAP,       v=>cfg.FLAP=v,       v=>v.toFixed(1));
+  onSlider('spUpClamp',()=>cfg.UP_CLAMP,   v=>cfg.UP_CLAMP=v,   v=>v.toFixed(1));
+  onSlider('spMaxVy',  ()=>cfg.MAX_VY,     v=>cfg.MAX_VY=v,     v=>v.toFixed(1));
+  onSlider('spGapMin', ()=>cfg.GAP_MIN,    v=>cfg.GAP_MIN=v,    v=>v.toFixed(0));
+  onSlider('spGapMax', ()=>cfg.GAP_MAX,    v=>cfg.GAP_MAX=v,    v=>v.toFixed(0));
+  onSlider('spSpacing',()=>cfg.SPACING,    v=>cfg.SPACING=v,    v=>v.toFixed(0));
+  onSlider('spPipeW',  ()=>PIPE_W,         v=>PIPE_W=v,         v=>v.toFixed(0));
+  onSlider('spGapPad', ()=>GAP_PAD,        v=>GAP_PAD=v,        v=>v.toFixed(0));
+  onSlider('spHitW',   ()=>HIT_W,          v=>HIT_W=v,          v=>v.toFixed(0));
+  onSlider('spHitH',   ()=>HIT_H,          v=>HIT_H=v,          v=>v.toFixed(0));
+  onSlider('spDrag',   ()=>cfg.DRAG,       v=>cfg.DRAG=v,       v=>v.toFixed(3));
+  onSlider('spEase',   ()=>cfg.THRUST_EASE,v=>cfg.THRUST_EASE=v,v=>v.toFixed(2));
+}
+function persistCustom(){
+  if (difficultySel.value!=='custom') return;
+  LS.set('fu_custom', { CFG:cfg, PIPE_W, GAP_PAD, HIT_W, HIT_H });
+}
+function markCustom(){ setDifficulty('custom'); }
+if (difficultySel){
+  difficultySel.addEventListener('change', ()=>{
+    const val=difficultySel.value;
+    if (val==='custom'){
+      const c=LS.get('fu_custom',null);
+      if (c&&c.CFG){ Object.assign(cfg,c.CFG); PIPE_W=c.PIPE_W??PIPE_W; GAP_PAD=c.GAP_PAD??GAP_PAD; HIT_W=c.HIT_W??HIT_W; HIT_H=c.HIT_H??HIT_H; }
+    } else {
+      Object.assign(cfg, PRESETS[val]||PRESETS.easy);
+    }
+    syncSliders();
+  });
+}
+if (modeSel){
+  modeSel.addEventListener('change', ()=>{ CONTROL_MODE=modeSel.value==='tap'?'tap':'hold'; LS.set('fu_control', CONTROL_MODE); });
+}
 
-bestEl.textContent = String(best);
+/* ========= Tooltip Edge-Avoidance ========= */
+document.querySelectorAll('.help').forEach(h=>{
+  const tip = h.querySelector('.tip');
+  h.addEventListener('mouseenter', ()=>{
+    const r = tip.getBoundingClientRect();
+    if (r.right > innerWidth - 8){ h.classList.add('edge'); } else { h.classList.remove('edge'); }
+  });
+});
 
-/* ===== Start text per device ===== */
-function isMobile(){ return (('ontouchstart' in window) || matchMedia('(pointer:coarse)').matches); }
-function setStartText(){
-  if (isMobile()){
-    startLine1.textContent = 'Tap screen repeatedly or hold, take off and fly ...';
-    startLine2.textContent = 'Press P for pause, S for Settings and A for Audio.';
-  }else{
-    startLine1.textContent = 'Press SPACE repeatedly or hold, to take off and fly ...';
-    startLine2.textContent = 'Press P for pause, S for Settings and A for Audio.';
+/* ========= Export Settings ========= */
+$('exportBtn').addEventListener('click', ()=>{
+  const payload = { difficulty: difficultySel.value, CFG:cfg, PIPE_W, GAP_PAD, HIT_W, HIT_H };
+  const txt = JSON.stringify(payload, null, 2);
+  navigator.clipboard.writeText(txt).then(()=> showToast('Settings copied to clipboard!'));
+});
+function showToast(msg){
+  const t=document.createElement('div');
+  t.textContent=msg;
+  Object.assign(t.style,{position:'fixed',bottom:'64px',left:'50%',transform:'translateX(-50%)',
+    background:'#0b3558',color:'#e6f2ff',padding:'10px 14px',borderRadius:'12px',boxShadow:'0 6px 16px rgba(0,0,0,.35)',zIndex:9999,opacity:'0',transition:'opacity .2s, transform .2s'});
+  document.body.appendChild(t); requestAnimationFrame(()=>{ t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(-6px)'; });
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(0)'; setTimeout(()=>t.remove(),220); }, 1200);
+}
+
+/* ========= View tuning ========= */
+let VIEW = { SPEED:1, THRUST:1, GRAV:1, SPACING:1, GAP_ADD:0, PIPE_W:1, landscape:false };
+function computeViewTuning(){
+  const vw = innerWidth, vh = innerHeight;
+  const land = vw >= vh; VIEW.landscape = land;
+  if (land){ VIEW.SPEED=1.15; VIEW.THRUST=1.00; VIEW.GRAV=1.00; VIEW.SPACING=1.05; VIEW.GAP_ADD=20; VIEW.PIPE_W=1.02; }
+  else { VIEW.SPEED=1.00; VIEW.THRUST=1.00; VIEW.GRAV=1.00; VIEW.SPACING=1.00; VIEW.GAP_ADD=0; VIEW.PIPE_W=1.00; }
+}
+const W = ()=>canvas.clientWidth, H = ()=>canvas.clientHeight;
+
+/* ========= State ========= */
+let unicorn, pipes, particles, rings, score=0, best=Number(LS.get('fu_best','0'))||0;
+let started=false, running=false, paused=false;
+let lives=3, invuln=0;
+let thrusting=false, thrustAcc=0;
+let spaceDown=false, pointerDown=false;
+
+/* Runtime/Fart-Time nur ingame */
+let runAccum=0, lastTick=null;     // ms
+let fartAccum=0, fartStart=null;   // ms
+
+/* ========= Audio ========= */
+let audioOn = false;
+const elThrust = document.getElementById('sndThrust');
+const elOuch   = document.getElementById('sndOuch');
+elThrust.volume = 0.25;
+elOuch.volume = 0.35;
+function toggleAudio(on){
+  audioOn = (on==null)? !audioOn : !!on;
+  audioBtn.textContent = audioOn ? '🔊' : '🔇';
+  if (!audioOn){ elThrust.pause(); elThrust.currentTime = 0; }
+}
+audioBtn.addEventListener('click', ()=>toggleAudio());
+window.addEventListener('keydown', (e)=>{ if (e.key==='a'||e.key==='A'){ toggleAudio(); }});
+
+/* ========= Panel/Pause ========= */
+function setPaused(p){
+  const want = !!p;
+  if (paused===want) return;
+  paused = want;
+  pauseTag.classList.toggle('hidden', !paused);
+  if (paused){ elThrust.pause(); } else if (thrusting && audioOn){ elThrust.play().catch(()=>{}); }
+}
+function togglePanel(open){
+  const show = (open==null)? panel.classList.contains('hidden') : !!open;
+  if (show){
+    panel.classList.remove('hidden'); gearBtn.setAttribute('aria-expanded','true');
+    setPaused(true); // immer pausieren beim Öffnen
+    setTimeout(()=>panel.scrollTop=0,0);
+  } else {
+    panel.classList.add('hidden'); gearBtn.setAttribute('aria-expanded','false');
+    /* Wichtig: NICHT automatisch entpausieren */
   }
 }
-setStartText();
-window.addEventListener('resize', setStartText);
+gearBtn.addEventListener('click', ()=>togglePanel());
+window.addEventListener('keydown', (e)=>{
+  if (e.key==='s'||e.key==='S'){ e.preventDefault(); togglePanel(); }
+  if (e.key==='p'||e.key==='P'){ if (started) setPaused(!paused); }
+});
 
-/* ===== Settings + Difficulty/Custom ===== */
-function setDebug(on){ const v=!!on; LS.set('fu_debug', v?'1':'0'); document.body.classList.toggle('debugOn', v); debugTag.style.display = v?'block':'none'; }
-debugChk.checked = (LS.get('fu_debug','0')==='1'); setDebug(debugChk.checked);
-debugChk.addEventListener('change', ()=> setDebug(debugChk.checked));
-
-modeSel.value = CONTROL_MODE;
-modeSel.addEventListener('change', ()=>{ CONTROL_MODE = (modeSel.value==='tap'?'tap':'hold'); LS.set('fu_control', CONTROL_MODE); });
-
-difficultySel.value = LS.get('fu_difficulty','easy');
-difficultySel.addEventListener('change', ()=>{ applyDifficulty(difficultySel.value); });
-
-function applyDifficulty(key){
-  if (key==='custom'){ LS.set('fu_difficulty','custom'); return; }
-  CFG = { ...PRESETS[key] } || { ...PRESETS.easy };
-  LS.set('fu_difficulty', key);
-  syncTuningFromCfg(false);
-}
-function markCustom(){
-  if (difficultySel.value!=='custom'){
-    difficultySel.value='custom';
-    LS.set('fu_difficulty','custom');
-  }
-}
-
-/* ===== Tuning UI + ranges ===== */
-const tuningRows = [
-  ['Scroll','spSpeed',0.3,9.0,0.1, ()=>CFG.SPEED,      v=>{CFG.SPEED=v; markCustom();},      'Horizontale Scroll-Geschwindigkeit.\nHöher = schnelleres Vorankommen & Schwierigkeitsanstieg.\nTipp: Bei breiten Displays höher setzen.'],
-  ['Gravity','spG',0.20,1.20,0.01, ()=>CFG.G,          v=>{CFG.G=v; markCustom();},          'Schwerkraft pro Frame (Abtrieb).\nErhöhen für schnellere Abwärtsreaktion.\nZu hoch macht Halten anspruchsvoller.'],
-  ['Thrust','spThrust',-2.00,-0.01,0.01, ()=>CFG.THRUST, v=>{CFG.THRUST=v; markCustom();},    'Kontinuierlicher Schub beim Halten (Hold).\nMehr negativ = stärkerer Auftrieb.\nMit Ease & Drag abstimmen.'],
-  ['Flap','spFlap',-18,-3,0.1, ()=>CFG.FLAP,           v=>{CFG.FLAP=v; markCustom();},       'Impuls beim Tippen/Antippen.\nMehr negativ = größerer Hopser.\nModeration hält Präzision hoch.'],
-  ['UpClamp','spUpClamp',-22,-5,0.1, ()=>CFG.UP_CLAMP, v=>{CFG.UP_CLAMP=v; markCustom();},   'Maximale Aufwärtsgeschwindigkeit.\nBegrenzt „Raketen“-Anstiege.\nMehr negativ = schnelleres Steigen.'],
-  ['MaxFall','spMaxVy',10,40,0.1, ()=>CFG.MAX_VY,      v=>{CFG.MAX_VY=v; markCustom();},     'Maximale Fallgeschwindigkeit.\nHöher = rascheres Fallen.\nAchtet auf faire Reaktionsfenster.'],
-  ['GapMin','spGapMin',80,720,5, ()=>CFG.GAP_MIN,      v=>{CFG.GAP_MIN=v; markCustom();},    'Kleinste Lückenhöhe.\nGrößer = leichter.\nSinnvoll in Kombi mit GapMax.'],
-  ['GapMax','spGapMax',120,900,5, ()=>CFG.GAP_MAX,     v=>{CFG.GAP_MAX=v; markCustom();},    'Größte Lückenhöhe (Varianzbereich).\nImmer > GapMin lassen.'],
-  ['Spacing','spSpacing',120,1000,10, ()=>CFG.SPACING, v=>{CFG.SPACING=v; markCustom();},    'Abstand zwischen Wänden.\nHöher = weniger Wände/mehr Luft.\nBeeinflusst Pace & Score.'],
-  ['PipeW','spPipeW',30,110,1, ()=>PIPE_W,             v=>{PIPE_W=v; markCustom();},         'Wandbreite (optisch & Hitbox).\nDicker = länger im Sichtfeld.'],
-  ['GapPad','spGapPad',0,48,1, ()=>GAP_PAD,            v=>{GAP_PAD=v; markCustom();},        'Sicherheitspuffer im Durchflug.\nVerhindert „unsichtbare“ Kollisionen.'],
-  ['HitW','spHitW',10,40,1, ()=>HIT_W,                 v=>{HIT_W=v; markCustom();},          'Unicorn-Hitbox Breite.\nKleiner = einfacher.\nIm Debug einblendbar.'],
-  ['HitH','spHitH',6,30,1, ()=>HIT_H,                  v=>{HIT_H=v; markCustom();},          'Unicorn-Hitbox Höhe.\nKleiner = einfacher.'],
-  ['Drag','spDrag',0.940,0.999,0.001, ()=>CFG.DRAG,    v=>{CFG.DRAG=v; markCustom();},       'Luftwiderstand (Dämpfung).\n0.97 = sirupartig, 0.999 = sehr crisp.\nHöher = agiler.'],
-  ['Ease','spEase',0.02,0.85,0.01, ()=>CFG.THRUST_EASE,v=>{CFG.THRUST_EASE=v; markCustom();},'Glättung des Halte-Schubs.\nHöher = direkter.\nNiedriger = butterweich.'],
-  ['TailLen','spTail',0.4,3.0,0.05, ()=>FART_STREAM_SCALE, v=>{FART_STREAM_SCALE=v; markCustom();}, 'Länge/Dichte des Regenbogen-Schweifs.\nMehr = länger/satter (Performance beachten).'],
-  ['Particles','spBudget',400,2500,50, ()=>PARTICLE_BUDGET, v=>{PARTICLE_BUDGET=v; markCustom();}, 'Max. Partikelzahl (Performance).\nAuf schwächeren Geräten senken.'],
-  ['BeansFreq','spBeanF',6,90,1, ()=>BEAN_FREQ, v=>{BEAN_FREQ=v; markCustom();}, 'Sekunden zwischen Lebens-Kristallen (max Rate).\nNiedriger = mehr 1-Ups.'],
-  ['BeansHover','spBeanH',0,40,1, ()=>BEAN_HOVER, v=>{BEAN_HOVER=v; markCustom();}, 'Schwebe-Amplitude der Kristalle.\nOptik-only.'],
-];
-const tuningHost = document.getElementById('tuning');
-
-function addRow(label,id,min,max,step,get,set,help){
-  const decimals = (String(step).split('.')[1]||'').length;
-  const fmt = v => Number(v).toFixed(decimals);
-  const row=document.createElement('div'); row.className='row';
-  row.innerHTML = `
-    <label for="${id}">${label}</label>
-    <input id="${id}" type="range" min="${min}" max="${max}" step="${step}">
-    <output class="val" id="${id}Val">${fmt(get())}</output>
-    <div class="help" tabindex="0" data-tip="${help.replace(/"/g,'&quot;')}">?</div>
-  `;
-  tuningHost.appendChild(row);
-  const inp=row.querySelector('input');
-  const out=row.querySelector('output');
-  const helpBtn=row.querySelector('.help');
-
-  const update=()=>{ const v=parseFloat(inp.value); set(v); out.textContent=fmt(v); };
-  inp.value=get(); out.textContent=fmt(get());
-  inp.addEventListener('input', update);
-
-  helpBtn.addEventListener('mouseenter', ()=>showTip(helpBtn));
-  helpBtn.addEventListener('focusin',   ()=>showTip(helpBtn));
-  helpBtn.addEventListener('mouseleave', ()=>hideTip(helpBtn));
-  helpBtn.addEventListener('blur',       ()=>hideTip(helpBtn));
-}
-
-function syncTuningFromCfg(markAsCustom=true){
-  tuningHost.innerHTML='';
-  for (const r of tuningRows) addRow(...r);
-  if (markAsCustom) markCustom();
-}
-
-/* ===== Tip portal (auto-fit, only as tall as content) ===== */
-const ACTIVE_TIPS = new Set();
-function showTip(anchor){
-  const text = anchor.getAttribute('data-tip') || '';
-  let tip = anchor._tipEl;
-  if (!tip){
-    tip = document.createElement('div');
-    tip.style.position='fixed';
-    tip.style.zIndex='10000';
-    tip.style.maxWidth='220px';
-    tip.style.width='min(220px, 90vw)';
-    tip.style.padding='10px 12px';
-    tip.style.borderRadius='10px';
-    tip.style.background='#0b3558';
-    tip.style.color='#fff';
-    tip.style.fontWeight='800';
-    tip.style.fontSize='12px';
-    tip.style.lineHeight='1.25';
-    tip.style.boxShadow='0 6px 16px rgba(0,0,0,.35)';
-    tip.style.pointerEvents='none';
-    tip.style.whiteSpace='pre-wrap';
-    tip.textContent=text;
-    document.body.appendChild(tip);
-    anchor._tipEl = tip;
-  } else { tip.textContent=text; tip.style.display='block'; }
-  positionTip(anchor, tip);
-  ACTIVE_TIPS.add(tip);
-}
-function positionTip(anchor, tip){
-  const ar = anchor.getBoundingClientRect();
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const tr = tip.getBoundingClientRect();
-  let x = ar.left + (ar.width - tr.width)/2;
-  let y = ar.top - tr.height - 10;
-  if (x < 8) x = 8;
-  if (x + tr.width > vw - 8) x = vw - 8 - tr.width;
-  if (y < 8) y = ar.bottom + 10;
-  tip.style.left = x+'px';
-  tip.style.top  = y+'px';
-  tip.style.opacity='1';
-}
-function hideTip(anchor){
-  const tip = anchor._tipEl;
-  if (tip){ tip.style.display='none'; ACTIVE_TIPS.delete(tip); }
-}
-['scroll','resize'].forEach(ev=> window.addEventListener(ev, ()=>{ for (const tip of ACTIVE_TIPS){ if (tip.style.display!=='none'){ tip.style.display='none'; } } }));
-
-/* ===== Audio ===== */
-let AC=null, masterGain=null, audioOn=false, thrustNoise=null, thrustGain=null;
-function initAudio(){ if (AC) return; AC=new (window.AudioContext||window.webkitAudioContext)(); masterGain=AC.createGain(); masterGain.gain.value=0; masterGain.connect(AC.destination); }
-function setAudio(on){ audioOn=!!on; soundBtn.textContent=audioOn?'🔊':'🔇'; if (audioOn){ initAudio(); masterGain.gain.setTargetAtTime(0.55, AC.currentTime, 0.02); } else if (masterGain){ masterGain.gain.setTargetAtTime(0.0, AC.currentTime, 0.02); stopThrustSound(); } }
-soundBtn.addEventListener('click', ()=> setAudio(!audioOn));
-window.addEventListener('keydown', (e)=>{ if (e.key==='a'||e.key==='A') setAudio(!audioOn); if (e.key==='s'||e.key==='S') togglePanel(); });
-
-function startThrustSound(){
-  if (!audioOn) return; initAudio(); if (thrustNoise) return;
-  const buffer = AC.createBuffer(1, AC.sampleRate*0.5, AC.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i=0;i<data.length;i++){ data[i]=(Math.random()*2-1)*0.5; }
-  thrustNoise = AC.createBufferSource(); thrustNoise.buffer=buffer; thrustNoise.loop=true;
-  const bp = AC.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=260; bp.Q.value=0.5;
-  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=80;
-  thrustGain = AC.createGain(); thrustGain.gain.value=0.0;
-  thrustNoise.connect(bp).connect(hp).connect(thrustGain).connect(masterGain);
-  thrustNoise.start();
-  thrustGain.gain.cancelScheduledValues(AC.currentTime);
-  thrustGain.gain.linearRampToValueAtTime(0.18, AC.currentTime+0.08);
-}
-function stopThrustSound(){
-  if (thrustGain){ try{ thrustGain.gain.linearRampToValueAtTime(0.0001, AC.currentTime+0.10);}catch(_){} }
-  if (thrustNoise){ const s=thrustNoise; thrustNoise=null; setTimeout(()=>{ try{s.stop();}catch(_){} }, 150); }
-}
-function playCrash(){ if (!audioOn||!AC) return; const n=AC.createBufferSource(); const b=AC.createBuffer(1, AC.sampleRate*0.18, AC.sampleRate); const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*5); n.buffer=b; const g=AC.createGain(); g.gain.value=0.35; n.connect(g).connect(masterGain); n.start(); }
-function playGameOver(){ if (!audioOn||!AC) return; const o=AC.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(480, AC.currentTime); const g=AC.createGain(); g.gain.value=0; o.connect(g).connect(masterGain); o.start(); g.gain.linearRampToValueAtTime(0.5, AC.currentTime+0.02); o.frequency.exponentialRampToValueAtTime(140, AC.currentTime+0.9); g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+1.0); o.stop(AC.currentTime+1.02); }
-function playPickup(){ if (!audioOn||!AC) return; const o=AC.createOscillator(); o.type='sine'; const g=AC.createGain(); o.frequency.value=660; g.gain.value=0; o.connect(g).connect(masterGain); o.start(); o.frequency.exponentialRampToValueAtTime(990, AC.currentTime+0.12); g.gain.linearRampToValueAtTime(0.35, AC.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+0.22); o.stop(AC.currentTime+0.25); }
-
-/* Drawing helpers (main) */
-function circle(x,y,r,fill){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=fill; ctx.fill(); }
-function triangle(x1,y1,x2,y2,x3,y3,fill){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); }
-function roundedRect(x,y,w,h,r,fill){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); }
-
-/* Unicorn preview (overlay) – own mini-drawer */
-function drawUnicornPreview(t){
-  const w=uPrev.width, h=uPrev.height;
-  uctx.clearRect(0,0,w,h);
-  const x=w*0.5, y=h*0.6;
-  // rainbow wing
-  const hues=[0,25,50,120,200,260,300];
-  const wingOff=Math.sin(t/6)*4;
-  for (let i=0;i<hues.length;i++){
-    const offY=Math.sin(t/8 + i*0.6)*2 - i*2.4;
-    const ww=22 - i*2.2; const hh=7; const rr=3.5;
-    uctx.beginPath();
-    const px = x-2 - 4 - i*5, py = y-18+wingOff + offY;
-    uctx.moveTo(px+rr,py);
-    uctx.arcTo(px+ww,py,px+ww,py+hh,rr);
-    uctx.arcTo(px+ww,py+hh,px,py+hh,rr);
-    uctx.arcTo(px,py+hh,px,py,rr);
-    uctx.arcTo(px,py,px+ww,py,rr);
-    uctx.closePath();
-    uctx.fillStyle=`hsl(${hues[i]} 90% 65%)`;
-    uctx.fill();
-  }
-  // body
-  uctx.beginPath();
-  const bx=x-22, by=y-15, bw=44, bh=30, br=14;
-  uctx.moveTo(bx+br,by);
-  uctx.arcTo(bx+bw,by,bx+bw,by+bh,br);
-  uctx.arcTo(bx+bw,by+bh,bx,by+bh,br);
-  uctx.arcTo(bx,by+bh,bx,by,br);
-  uctx.arcTo(bx,by,bx+bw,by,br);
-  uctx.closePath(); uctx.fillStyle='#fff'; uctx.fill();
-  // mane stripes
-  for (let i=0;i<5;i++){
-    uctx.fillStyle=`hsl(${(i*50+280)%360} 90% 65%)`;
-    uctx.fillRect(x-25, y-14+i*5, 14, 3.5);
-  }
-  // face
-  uctx.beginPath(); uctx.arc(x+5,y+6,3.2,0,Math.PI*2); uctx.fillStyle='#ffd0e6'; uctx.fill();
-  uctx.beginPath(); uctx.arc(x+11,y-2.5,2.8,0,Math.PI*2); uctx.fillStyle='#2b2b2b'; uctx.fill();
-  // ear
-  uctx.beginPath(); uctx.moveTo(x+8,y-20); uctx.lineTo(x+14,y-8); uctx.lineTo(x+4,y-10); uctx.closePath(); uctx.fillStyle='#fff'; uctx.fill();
-  uctx.beginPath(); uctx.moveTo(x+8,y-18); uctx.lineTo(x+12,y-10); uctx.lineTo(x+6,y-11); uctx.closePath(); uctx.fillStyle='#ffd0e6'; uctx.fill();
-  // horn rotated 45°
-  uctx.save(); uctx.translate(x+22,y-12); uctx.rotate(-Math.PI/4);
-  uctx.beginPath(); uctx.moveTo(0,0); uctx.lineTo(0,8); uctx.lineTo(12,4); uctx.closePath(); uctx.fillStyle='#ffd166'; uctx.fill();
-  uctx.restore();
-}
-let uT=0; (function uLoop(){ uT+=1; drawUnicornPreview(uT); requestAnimationFrame(uLoop); })();
-
-/* Clouds & obstacles (main) */
-function drawCloud(x,y,w,h){ ctx.fillStyle='#fff'; const rr=Math.min(w,h)/4; ctx.beginPath(); ctx.arc(x+w*0.2,y+h*0.6,rr,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x+w*0.4,y+h*0.5,rr*1.1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x+w*0.6,y+h*0.55,rr*0.95,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x+w*0.75,y+h*0.65,rr*0.85,0,Math.PI*2); ctx.fill(); ctx.fillRect(x+w*0.1, y+h*0.6, w*0.8, h*0.4); }
-function drawObstacle(p){
-  ctx.save(); ctx.beginPath(); ctx.rect(p.x,0,p.w,p.top); ctx.clip(); ctx.fillStyle='#fff'; ctx.fillRect(p.x,0,p.w,p.top);
-  for (let i=0;i<3;i++){ drawCloud(p.x-6+i*(p.w/3), p.top*0.45-20, p.w*0.9, p.top*0.6); } ctx.restore();
-  const by=p.top+p.gap, bh=H()-by; ctx.save(); ctx.beginPath(); ctx.rect(p.x,by,p.w,bh); ctx.clip(); ctx.fillStyle='#fff'; ctx.fillRect(p.x,by,p.w,bh);
-  for (let i=0;i<3;i++){ drawCloud(p.x-6+i*(p.w/3), by+bh*0.0, p.w*0.9, bh*0.6+24); } ctx.restore();
-  if (debugChk.checked){ ctx.save(); ctx.strokeStyle='rgba(255,0,0,.45)'; ctx.setLineDash([6,4]); ctx.strokeRect(p.x,0,p.w,p.top); ctx.strokeRect(p.x,by,p.w,bh);
-    ctx.strokeStyle='rgba(0,128,0,.6)'; ctx.setLineDash([4,6]); ctx.beginPath(); ctx.moveTo(p.x, p.top+GAP_PAD); ctx.lineTo(p.x+p.w, p.top+GAP_PAD); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(p.x, p.top+p.gap-GAP_PAD); ctx.lineTo(p.x+p.w, p.top+p.gap-GAP_PAD); ctx.stroke(); ctx.restore(); }
-}
-
-/* Unicorn (main) */
-function drawRainbowWing(x,y,t){ const hues=[0,25,50,120,200,260,300]; for (let i=0;i<hues.length;i++){ const offY=Math.sin(t/8 + i*0.6)*2 - i*2.4; const w=22 - i*2.2; const h=7; const r=3.5; ctx.beginPath(); const px=x-2 - 4 - i*5, py=y + offY; ctx.moveTo(px+r,py); ctx.arcTo(px+w,py,px+w,py+h,r); ctx.arcTo(px+w,py+h,px,py+h,r); ctx.arcTo(px,py+h,px,py,r); ctx.arcTo(px,py,px+w,py,r); ctx.closePath(); ctx.fillStyle=`hsl(${hues[i]} 90% 65%)`; ctx.fill(); } }
-function drawUnicorn(u){
-  const x=u.x,y=u.y,t=u.t; const wingOff=Math.sin(t/6)*4; drawRainbowWing(x-2, y-18+wingOff, t);
-  ctx.save(); ctx.translate(x,y); ctx.rotate(u.rot||0); ctx.scale(u.scale||1, u.scale||1);
-  roundedRect(-22,-15,44,30,14,'#fff'); for (let i=0;i<5;i++){ ctx.fillStyle=`hsl(${(i*50+280)%360} 90% 65%)`; roundedRect(-25,-14+i*5,14,3.5,1.7,ctx.fillStyle); }
-  circle(5,6,3.2,'#ffd0e6'); circle(11,-2.5,2.8,'#2b2b2b'); triangle(8,-20,14,-8,4,-10,'#fff'); triangle(8,-18,12,-10,6,-11,'#ffd0e6');
-  ctx.save(); ctx.translate(22,-12); ctx.rotate(-Math.PI/4); triangle(0,0,0,8,12,4,'#ffd166'); ctx.restore();
-  const legSwing=Math.sin(t/8)*2; circle(-12,15+legSwing,2.6,'#444'); circle(5,15-legSwing,2.6,'#444');
-  ctx.restore();
-  if (debugChk.checked){ const hbw=HIT_W/2,hbh=HIT_H/2; ctx.save(); ctx.strokeStyle='rgba(0,200,0,.7)'; ctx.setLineDash([5,3]); ctx.strokeRect(x-hbw,y-hbh,HIT_W,HIT_H); ctx.restore(); }
-}
-
-/* Particles & rings */
-function pushParticle(p){ particles.push(p); if (particles.length>PARTICLE_BUDGET) particles.splice(0, particles.length-PARTICLE_BUDGET); }
+/* ========= Particles / FX ========= */
+const PARTICLE_BUDGET = 1100;
+particles=[]; rings=[];
 function fartHue(i,t){ return (t*4 + i*15) % 360; }
-function fartBurst(n=24){ for (let i=0;i<n;i++){ const hue=fartHue(i,unicorn.t); pushParticle({ x:unicorn.x-10,y:unicorn.y+4, vx:-3.0-Math.random()*2.2, vy:(Math.random()*2-1)*1.0, life:70+Math.random()*30, hue, r:3+Math.random()*2.8, type:'jet' }); } for (let i=0;i<8;i++){ const hue=(unicorn.t*3 + i*45)%360; pushParticle({ x:unicorn.x-12,y:unicorn.y+6, vx:-2.0-Math.random()*1.2, vy:(Math.random()*2-1)*0.6, life:90+Math.random()*20, hue, r:4.5+Math.random()*2.5, type:'plume' }); } }
-function sparkBurst(){ for (let i=0;i<18;i++){ const a=Math.random()*Math.PI*2, sp=1.6+Math.random()*1.8; const hue=(unicorn.t*5 + i*18)%360; pushParticle({ x:unicorn.x-6,y:unicorn.y+4, vx:Math.cos(a)*sp-2, vy:Math.sin(a)*sp*0.6, life:28+Math.random()*18, hue, r:1.8+Math.random()*1.4, type:'spark' }); } }
-function shockwave(){ rings.push({ x:unicorn.x-8, y:unicorn.y+4, r:6, w:3.5, life:24 }); }
-function fartStream(){ const jetN=Math.round(6*FART_STREAM_SCALE), plumeN=Math.round(4*FART_STREAM_SCALE);
-  for (let i=0;i<jetN;i++){ const hue=(unicorn.t*3 + i*22)%360; pushParticle({ x:unicorn.x-10,y:unicorn.y+4, vx:-2.6-Math.random()*1.6, vy:(Math.random()*2-1)*0.6, life:62+Math.random()*22, hue, r:2.6+Math.random()*1.6, type:'jet' }); }
-  for (let i=0;i<plumeN;i++){ const hue=(unicorn.t*2 + i*60)%360; pushParticle({ x:unicorn.x-12,y:unicorn.y+6, vx:-1.8-Math.random()*1.2, vy:(Math.random()*2-1)*0.5, life:70+Math.random()*18, hue, r:3.4+Math.random()*1.6, type:'plume' }); }
+function fartBurst(n=24){
+  for(let i=0;i<n;i++){
+    const hue=fartHue(i, unicorn.t);
+    particles.push({ x:unicorn.x-10, y:unicorn.y+4, vx:-3.0 - Math.random()*2.2, vy:(Math.random()*2-1)*1.0, life:70+Math.random()*30, hue, r:3+Math.random()*2.8, type:'jet' });
+  }
+  for(let i=0;i<8;i++){
+    const hue=(unicorn.t*3 + i*45)%360;
+    particles.push({ x:unicorn.x-12, y:unicorn.y+6, vx:-2.0 - Math.random()*1.2, vy:(Math.random()*2-1)*0.6, life:90+Math.random()*20, hue, r:4.5+Math.random()*2.5, type:'plume' });
+  }
 }
-function updateParticles(){ if (CONTROL_MODE==='hold'){ if (thrusting){ fartStream(); fartingNow=true; startThrustSound(); } else { fartingNow=false; stopThrustSound(); } }
-  for (let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.032; p.life--; if (p.life<=0) particles.splice(i,1); } }
-function drawParticles(){ ctx.save(); for (const p of particles){ const a=Math.max(0, p.life/(p.type==='spark'?40:90)); const col=`hsl(${p.hue} 95% 60%)`; ctx.globalAlpha=a; ctx.shadowBlur=8; ctx.shadowColor=col; ctx.fillStyle=col; ctx.beginPath(); if (p.type==='jet'){ ctx.ellipse(p.x,p.y,p.r*1.4,p.r*0.9,0,0,Math.PI*2); } else { ctx.arc(p.x,p.y,p.r,0,Math.PI*2); } ctx.fill(); } ctx.restore(); ctx.globalAlpha=1; }
-function updateRings(){ for (let i=rings.length-1;i>=0;i--){ const r=rings[i]; r.r+=2.4; r.w*=0.96; r.life--; if (r.life<=0) rings.splice(i,1); } }
+function sparkBurst(){
+  for (let i=0;i<18;i++){
+    const a=Math.random()*Math.PI*2; const sp=1.6+Math.random()*1.8; const hue=(unicorn.t*5 + i*18)%360;
+    particles.push({ x:unicorn.x-6, y:unicorn.y+4, vx:Math.cos(a)*sp-2, vy:Math.sin(a)*sp*0.6, life:28+Math.random()*18, hue, r:1.8+Math.random()*1.4, type:'spark' });
+  }
+}
+function shockwave(){ rings.push({ x:unicorn.x-8, y:unicorn.y+4, r:6, w:3.5, life:24 }); }
+function fartStream(){
+  for (let i=0;i<4;i++){
+    const hue=(unicorn.t*3 + i*22)%360;
+    particles.push({ x:unicorn.x-10, y:unicorn.y+4, vx:-2.6 - Math.random()*1.6, vy:(Math.random()*2-1)*0.6, life:62+Math.random()*22, hue, r:2.6+Math.random()*1.6, type:'jet' });
+  }
+}
+function updateParticles(){
+  for (let i=particles.length-1;i>=0;i--){
+    const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.032; p.life-=1; if (p.life<=0) particles.splice(i,1);
+  }
+  if (running && !paused && thrusting && CONTROL_MODE==='hold') fartStream();
+  if (particles.length>PARTICLE_BUDGET) particles.splice(0, particles.length-PARTICLE_BUDGET);
+}
+function drawParticles(){
+  ctx.save(); ctx.globalCompositeOperation='source-over';
+  for (const p of particles){
+    const a=Math.max(0, p.life/(p.type==='spark'?40:90));
+    const col=`hsl(${p.hue},95%,60%)`; ctx.globalAlpha=a; ctx.shadowBlur=8; ctx.shadowColor=col; ctx.fillStyle=col;
+    ctx.beginPath(); if (p.type==='jet'){ ctx.ellipse(p.x,p.y,p.r*1.4,p.r*0.9,0,0,Math.PI*2); } else { ctx.arc(p.x,p.y,p.r,0,Math.PI*2); } ctx.fill();
+  }
+  ctx.restore(); ctx.globalAlpha=1;
+}
+function updateRings(){ for (let i=rings.length-1;i>=0;i++){ const r=rings[i]; r.r+=2.4; r.w*=0.96; r.life--; if (r.life<=0) rings.splice(i,1); } }
 function drawRings(){ ctx.save(); ctx.globalAlpha=0.5; ctx.strokeStyle='rgba(255,255,255,.85)'; for (const r of rings){ ctx.lineWidth=Math.max(0.8,r.w); ctx.beginPath(); ctx.arc(r.x,r.y,Math.max(1,r.r),0,Math.PI*2); ctx.stroke(); } ctx.restore(); }
 
-/* Obstacles & BG clouds */
-let PIPE_ID_SEQ=0;
-function gapWithView(){ const min=Math.max(80, CFG.GAP_MIN+VIEW.GAP_ADD); const max=Math.max(min+20, CFG.GAP_MAX+VIEW.GAP_ADD); return {min,max}; }
-function randGap(){ const g=gapWithView(); return g.min + Math.random()*(g.max-g.min); }
-function addPipe(x){ const gap=randGap(); const maxTop=Math.max(60, H()-gap-100); const topH=50+Math.random()*maxTop; const w=Math.round(PIPE_W*VIEW.PIPE_W);
-  const p={ id: PIPE_ID_SEQ++, x, w, top:topH, gap, scored:false }; pipes.push(p); }
-function tryAddPipes(){ const rightMost=pipes.length? Math.max(...pipes.map(p=>p.x)) : 0; const spacing=Math.round(CFG.SPACING*VIEW.SPACING); if (rightMost < W()+20) addPipe((pipes.length? rightMost: W()) + spacing); }
+/* ========= Drawing helpers ========= */
+function circle(x,y,r, fill){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=fill; ctx.fill(); }
+function triangle(x1,y1,x2,y2,x3,y3, fill){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); }
+function roundedRect(x,y,w,h,r, fill){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); }
 
-function spawnBgClouds(){ bgClouds.length=0; const count=16; for (let i=0;i<count;i++){ bgClouds.push({ x:Math.random()*W(), y:Math.random()*H()*0.9, s:0.4+Math.random()*1.2, a:0.25+Math.random()*0.35 }); } }
-function drawBgCloud(c){ ctx.save(); ctx.globalAlpha=c.a; drawCloud(c.x,c.y,70*c.s,28*c.s); ctx.restore(); c.x -= c.s*0.35*CFG.SPEED; if (c.x < -80){ c.x=W()+rand(0,120); c.y=rand(20,H()*0.9); } }
-
-/* Fart Crystals (life pickups) */
-function spawnBean(){ const margin=70; beans.push({ x:W()+80, y:rand(margin,H()-margin), r:13, t:rand(0,Math.PI*2), alive:true, exploding:false, et:0 }); }
-function updateBeans(dt){
-  const nowt=performance.now();
-  if (BEANS_ON){ if (!lastBeanAt) lastBeanAt=nowt; if (nowt - lastBeanAt > BEAN_FREQ*1000){ spawnBean(); lastBeanAt=nowt; } }
-  for (const b of beans){ if (!b.exploding){ b.x -= CFG.SPEED*VIEW.SPEED*1.25; b.t += 0.03; } else { b.et += dt/220; if (b.et>=1){ b.alive=false; } } }
-  beans = beans.filter(b=> b.alive && b.x>-80);
+/* ========= Clouds & Obstacles ========= */
+function drawCloud(x,y,w,h){ ctx.fillStyle='#fff'; const rr=Math.min(w,h)/4;
+  circle(x+w*0.2,y+h*0.6,rr,'#fff'); circle(x+w*0.4,y+h*0.5,rr*1.1,'#fff'); circle(x+w*0.6,y+h*0.55,rr*0.95,'#fff'); circle(x+w*0.75,y+h*0.65,rr*0.85,'#fff'); ctx.fillRect(x+w*0.1,y+h*0.6,w*0.8,h*0.4);
 }
-function drawBean(b){
-  const baseX=b.x, baseY=b.y + Math.sin(b.t)*BEAN_HOVER;
-  const s = b.exploding ? (1 + 1.3*(1- Math.pow(1-b.et, 2))) : 1;
-  const alpha = b.exploding ? (1 - b.et) : 0.95;
-  const x=baseX, y=baseY;
-  const grd = ctx.createLinearGradient(x-20,y-20,x+20,y+20);
-  const hues=[0,45,90,160,220,280,330];
-  for (let i=0;i<hues.length;i++){ grd.addColorStop(i/(hues.length-1), `hsl(${(hues[i] + (unicorn?.t||0)*2)%360} 90% 60%)`); }
-  ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.scale(1.0*s,1.0*s); ctx.globalAlpha=alpha;
-  ctx.fillStyle=grd; ctx.fillRect(-14,-14,28,28);
+function drawObstacle(p){
+  // Top
+  ctx.save(); ctx.beginPath(); ctx.rect(p.x,0,p.w,p.top); ctx.clip(); ctx.fillStyle='#fff'; ctx.fillRect(p.x,0,p.w,p.top);
+  for(let i=0;i<3;i++){ drawCloud(p.x-6+i*(p.w/3), p.top*0.45-20, p.w*0.9, p.top*0.6); }
   ctx.restore();
-}
+  // Bottom
+  const by=p.top+p.gap, bh=H()-by; ctx.save(); ctx.beginPath(); ctx.rect(p.x,by,p.w,bh); ctx.clip(); ctx.fillStyle='#fff'; ctx.fillRect(p.x,by,p.w,bh);
+  for(let i=0;i<3;i++){ drawCloud(p.x-6+i*(p.w/3), by+bh*0.0, p.w*0.9, bh*0.6+24); }
+  ctx.restore();
 
-/* Flying heart animation */
-function launchHeartFrom(x,y){
-  const targetRect = livesEl.getBoundingClientRect();
-  const canvasRect = canvas.getBoundingClientRect();
-  const tx = targetRect.left - canvasRect.left + 40;
-  const ty = targetRect.top - canvasRect.top + 12;
-  flyHearts.push({ x0:x, y0:y, x1:tx, y1:ty, t:0, el:makeHeartEl() });
-}
-function makeHeartEl(){ const el=document.createElement('div'); el.className='fh'; el.textContent='❤️'; wrap.appendChild(el); return el; }
-function updateFlyHearts(dt){
-  for (const h of flyHearts){ h.t += dt/650; const t=clamp(h.t,0,1); const e=1-Math.pow(1-t,3); const x=h.x0 + (h.x1-h.x0)*e; const y=h.y0 + (h.y1-h.y0)*e - (1-e)*20;
-    h.el.style.left=x+'px'; h.el.style.top=y+'px'; h.el.style.opacity=String(1-t); h.el.style.transform=`translate(-50%,-50%) scale(${1+0.2*(1-e)})`; }
-  for (let i=flyHearts.length-1;i>=0;i--){ if (flyHearts[i].t>=1){ wrap.removeChild(flyHearts[i].el); flyHearts.splice(i,1); } }
-}
-
-/* Score & timers */
-function drawLives(){ livesEl.innerHTML=''; for (let i=0;i<maxLives;i++){ const s=document.createElement('span'); s.className='heart'; s.textContent=(i<lives)?'❤️':'🩶'; livesEl.appendChild(s);} }
-function updateScore(){ scoreEl.textContent=String(score); }
-function updateTimers(){ runtimeSpan.textContent=fmtTime(runtimeMs); farttimeSpan.textContent=fmtTime(fartMsAccum); }
-
-/* ===== Sanitizer (Safe-Boot vs. NaN) ===== */
-function sanitize(){
-  // expected numeric ranges (min,max, default)
-  const ranges = {
-    G:[0.2,1.2,PRESETS.easy.G], FLAP:[-18,-3,PRESETS.easy.FLAP], THRUST:[-2.0,-0.01,PRESETS.easy.THRUST],
-    KICK:[-4,-0.5,PRESETS.easy.KICK], MAX_VY:[10,40,PRESETS.easy.MAX_VY], GAP_MIN:[60,900,PRESETS.easy.GAP_MIN],
-    GAP_MAX:[80,1200,PRESETS.easy.GAP_MAX], SPACING:[100,1200,PRESETS.easy.SPACING], SPEED:[0.3,9.0,PRESETS.easy.SPEED],
-    THRUST_EASE:[0.01,0.9,PRESETS.easy.THRUST_EASE], DRAG:[0.93,0.999,PRESETS.easy.DRAG], UP_CLAMP:[-30,-3,PRESETS.easy.UP_CLAMP]
-  };
-  let bad=false;
-  for (const k in ranges){
-    const [mn,mx,def]=ranges[k];
-    if (!isNum(CFG[k])){ CFG[k]=def; bad=true; }
-    CFG[k]=clamp(CFG[k],mn,mx);
-  }
-  if (CFG.GAP_MAX <= CFG.GAP_MIN+10){ CFG.GAP_MAX = CFG.GAP_MIN+40; bad=true; }
-
-  function sn(v,mn,mx,def){ if (!isNum(v)) { bad=true; return def; } return clamp(v,mn,mx); }
-  PIPE_W = sn(PIPE_W,30,110,54);
-  GAP_PAD = sn(GAP_PAD,0,48,18);
-  HIT_W = sn(HIT_W,10,40,26);
-  HIT_H = sn(HIT_H,6,30,16);
-  PARTICLE_BUDGET = sn(PARTICLE_BUDGET,400,2500,1100);
-  FART_STREAM_SCALE = sn(FART_STREAM_SCALE,0.4,3.0,1.2);
-  BEAN_FREQ = sn(BEAN_FREQ,6,90,25);
-  BEAN_HOVER = sn(BEAN_HOVER,0,40,10);
-
-  // if anything looked bad AND user was on 'custom' → fall back to easy for this session
-  if (bad && difficultySel.value==='custom'){
-    CFG = { ...PRESETS.easy };
-    difficultySel.value='easy';
-    LS.set('fu_difficulty','easy');
+  // Debug Linien (Gap-Ränder)
+  if (DEBUG_ON){
+    ctx.save(); ctx.strokeStyle='rgba(0,128,0,.6)'; ctx.setLineDash([4,6]);
+    ctx.beginPath(); ctx.moveTo(p.x, p.top+GAP_PAD); ctx.lineTo(p.x+p.w, p.top+GAP_PAD); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, p.top+p.gap-GAP_PAD); ctx.lineTo(p.x+p.w, p.top+p.gap-GAP_PAD); ctx.stroke();
+    ctx.restore();
   }
 }
-sanitize();
 
-/* ===== Panel open/close — pause when opened during play; S toggles; auto-close on resume ===== */
-function setPaused(p){ paused=!!p; pauseTag.classList.toggle('hidden', !paused);
-  if (!paused && !panel.classList.contains('hidden')){ panel.classList.add('hidden'); gearBtn.setAttribute('aria-expanded','false'); }
-}
-function togglePanel(force){
-  const open=(force==null)? panel.classList.contains('hidden') : !!force;
-  panel.classList.toggle('hidden', !open); gearBtn.setAttribute('aria-expanded', String(open));
-  if (open && running && !paused) setPaused(true);
-}
-gearBtn.addEventListener('click',(e)=>{ e.stopPropagation(); togglePanel(); });
-document.addEventListener('pointerdown',(e)=>{ if (!panel.classList.contains('hidden')){ if (!e.target.closest('#settingsPanel') && e.target!==gearBtn){ panel.classList.add('hidden'); gearBtn.setAttribute('aria-expanded','false'); } } });
-
-/* ===== Export ===== */
-function showToast(msg='Settings copied to clipboard!'){
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(()=>toast.classList.remove('show'), 1400);
-}
-btnExport.addEventListener('click', async ()=>{
-  const payload = {
-    difficulty: difficultySel.value,
-    CFG, PIPE_W, GAP_PAD, HIT_W, HIT_H,
-    PARTICLE_BUDGET, FART_STREAM_SCALE,
-    BEANS_ON, BEAN_FREQ, BEAN_HOVER
-  };
-  const text = JSON.stringify(payload, null, 2);
-  try{ await navigator.clipboard.writeText(text); showToast(); }
-  catch(_){
-    const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
-    try{ document.execCommand('copy'); }catch(_){}
-    document.body.removeChild(ta); showToast();
+/* ========= Unicorn ========= */
+let DEBUG_ON = false;
+function drawRainbowWing(x,y,t){ const hues=[0,25,50,120,200,260,300];
+  for(let i=0;i<hues.length;i++){ const offY=Math.sin(t/8 + i*0.6)*2 - i*2.4; const w=22 - i*2.2; const h=7; const r=3.5;
+    roundedRect(x - 4 - i*5, y + offY, w, h, r, `hsl(${hues[i]}, 90%, 65%)`);
   }
-});
+}
+function drawUnicorn(u){ const x=u.x,y=u.y,t=u.t; const wingOff=Math.sin(t/6)*4;
+  drawRainbowWing(x-2, y-18+wingOff, t);
+  roundedRect(x-22,y-15,44,30,14,'#fff'); // body
+  // mane
+  for(let i=0;i<5;i++){ ctx.fillStyle=`hsl(${(i*50+280)%360}, 90%, 65%)`; roundedRect(x-25,y-14+i*5,14,3.5,1.7,ctx.fillStyle); }
+  // cheek/eye/ear/horn/feet
+  circle(x+5,y+6,3.2,'#ffd0e6'); circle(x+11,y-2.5,2.8,'#2b2b2b');
+  triangle(x+8,y-20,x+14,y-8,x+4,y-10,'#fff'); triangle(x+8,y-18,x+12,y-10,x+6,y-11,'#ffd0e6');
+  // horn 45°
+  ctx.save(); ctx.translate(x+22,y-8); ctx.rotate(-Math.PI/4); triangle(0,-4, 0,4, 12,0, '#ffd166'); ctx.restore();
+  // feet & dangling legs
+  circle(x-12,y+15,2.3,'#444'); circle(x+5,y+15,2.3,'#444');
+  const leg = Math.sin(t/7)*2; circle(x-13,y+16+leg,2,'#444'); circle(x+6,y+16-leg,2,'#444');
+  if (DEBUG_ON){ const hbw=HIT_W/2,hbh=HIT_H/2; ctx.save(); ctx.strokeStyle='rgba(0,200,0,.7)'; ctx.setLineDash([5,3]); ctx.strokeRect(x-hbw,y-hbh,HIT_W,HIT_H); ctx.restore(); }
+}
 
-/* ===== Input ===== */
-function forceStart(){ if (!started || !running){ start(); return; } if (paused){ setPaused(false); } }
-canvas.addEventListener('pointerdown',(e)=>{ if (!started||!running||paused){ forceStart(); return; } if (CONTROL_MODE==='tap') flap(); else { pointerDown=true; startThrust(); } });
-canvas.addEventListener('pointerup',  ()=>{ pointerDown=false; });
-canvas.addEventListener('pointerleave',()=>{ pointerDown=false; });
-document.addEventListener('pointerdown',(e)=>{ if (!started||!running||paused){ if (!e.target.closest('#settingsPanel') && e.target!==gearBtn) forceStart(); } }, true);
+/* ========= Obstacles ======== */
+function gapWithView(){ const min=Math.max(120, cfg.GAP_MIN + VIEW.GAP_ADD); const max=Math.max(min+20, cfg.GAP_MAX + VIEW.GAP_ADD); return {min,max}; }
+function randGap(){ const g=gapWithView(); return g.min + Math.random()*(g.max-g.min); }
+function addPipe(x){
+  const gap=randGap(); const maxTop=Math.max(60, H()-gap-100);
+  const topH=50+Math.random()*maxTop; const w=Math.round(PIPE_W*VIEW.PIPE_W);
+  pipes.push({ x, w, top:topH, gap, scored:false });
+}
+function tryAddPipes(){
+  const rightMost=pipes.length? Math.max(...pipes.map(p=>p.x)) : 0;
+  const spacing=Math.round(cfg.SPACING*VIEW.SPACING);
+  if (rightMost < W()+20) addPipe((pipes.length? rightMost: W()) + spacing);
+}
 
-window.addEventListener('keydown',(e)=>{
-  const isSpace=(e.code==='Space'||e.key===' '||e.key==='Spacebar');
-  if (isSpace){ e.preventDefault(); if (!started||!running||paused){ forceStart(); } spaceDown=true; if (CONTROL_MODE==='tap') flap(); }
-  if (e.key==='p'||e.key==='P'){ if (started){ setPaused(!paused); } }
-  if (e.key==='Enter'){ e.preventDefault(); forceStart(); }
-});
-window.addEventListener('keyup',(e)=>{ const isSpace=(e.code==='Space'||e.key===' '||e.key==='Spacebar'); if (isSpace) spaceDown=false; });
+/* ========= Runtime/Score UI ========= */
+function fmtTime(ms){ const t=Math.max(0, Math.floor(ms)); const s=Math.floor(t/1000), m=Math.floor(s/60); const ds=Math.floor((t%1000)/100);
+  return `${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}.${ds}`;
+}
+function updateHUD(){
+  const run = fmtTime(runAccum);
+  const fart = fmtTime(fartAccum + (thrusting && !paused && running && CONTROL_MODE==='hold' && fartStart? (performance.now()-fartStart):0));
+  timePill.textContent = `⏱️ ${run} · Farting ${fart} 💨`;
+  livesEl.textContent = '❤️'.repeat(lives) + '🤍'.repeat(3-lives);
+  scorePill.textContent = `Gaps ${score} · Best ${best}`;
+}
 
-/* ===== Lifecycle ===== */
+/* ========= Lifecycle ========= */
 function reset(){
-  if (W()<=0 || H()<=0){ scheduleFit(); requestAnimationFrame(reset); return; }
-  unicorn={ x:W()*0.28, y:H()*0.45, vy:0, r:18, t:0, scale:1, rot:0 };
-  pipes.length=0; particles.length=0; rings.length=0; bgClouds.length=0; beans.length=0; flyHearts.length=0;
-  score=0; invulnUntil=0; dying=false; dieT=0; runtimeMs=0; fartMsAccum=0; thrustAcc=0; lastHitPipeId=-1;
-  lives=maxLives; drawLives();
-  addPipe(W()+120); addPipe(W()+120 + Math.round(CFG.SPACING*VIEW.SPACING));
-  spawnBgClouds(); updateScore(); updateTimers();
-  goBig.classList.add('hidden'); goBig.classList.remove('show'); goBig.setAttribute('aria-hidden','true');
-}
-function start(){
-  started=true; running=true; paused=false; thrusting=false; spaceDown=false; pointerDown=false; dying=false; dieT=0;
-  pauseTag.classList.add('hidden');
-  overlay.classList.add('hidden'); overlay.style.display='none'; overlay.setAttribute('aria-hidden','true');
-  gearBtn.blur();
-  reset();
+  unicorn={ x:W()*0.28, y:H()*0.45, vy:0, r:18, t:0 };
+  pipes=[]; particles=[]; rings=[]; score=0; thrustAcc=0; lives=3; invuln=0;
+  const spacing = Math.round(cfg.SPACING*VIEW.SPACING);
+  addPipe(W()+120); addPipe(W()+120+spacing);
+  // Runtime/Fart-Time zurücksetzen
+  runAccum=0; lastTick=null; fartAccum=0; fartStart=null;
+  updateHUD();
 }
 function gameOver(){
-  running=false; dying=true; dieT=0; best=Math.max(best,score); LS.set('fu_best', String(best)); bestEl.textContent=String(best); playGameOver();
-  goBig.classList.remove('hidden'); goBig.classList.add('show'); goBig.setAttribute('aria-hidden','false');
+  running=false;
+  // GO-Animation (Zoom in + weiter furzen)
+  const startX=unicorn.x, startY=unicorn.y;
+  const targetX=W()*0.5, targetY=H()*0.5;
+  const dur=900; const t0=performance.now();
+  // „Game Over“-Text zunächst ausblenden
+  goBig.classList.add('hidden'); goBig.style.opacity='0';
+  function anim(){
+    const t=performance.now()-t0; const k=Math.min(1, t/dur);
+    const e = k<0.5 ? 2*k*k : 1 - Math.pow(-2*k+2,2)/2;
+    unicorn.x = startX + (targetX-startX)*e;
+    unicorn.y = startY + (targetY-startY)*e;
+    unicorn.r = 18*(1+e*4.2);
+    thrusting=true; fartStream(); sparkBurst();
+    if (k<1){ requestAnimationFrame(anim); }
+    else{
+      thrusting=false;
+      goBig.classList.remove('hidden'); goBig.style.opacity='1';
+      setTimeout(()=>{
+        goBig.style.opacity='0';
+        setTimeout(()=>{
+          goBig.classList.add('hidden');
+          started=false; paused=false;
+          overlay.classList.remove('hidden'); // Startscreen zurück
+          positionUnicornForStart();
+          lives=3; updateHUD();
+        }, 250);
+      }, 850);
+    }
+  }
+  anim();
+  best=Math.max(best,score); LS.set('fu_best', best);
+}
+function start(boostKind){
+  started=true; running=true; setPaused(false);
+  overlay.classList.add('hidden');
+  if (document.activeElement===gearBtn) gearBtn.blur();
+  reset();
+  // sofortiger Schub beim ersten Input
+  if (boostKind==='tap'){ flap(); }
+  else if (boostKind==='hold'){ startThrust(); thrusting=true; fartStart=performance.now(); setTimeout(()=>{ if (!spaceDown && !pointerDown) endThrust(); }, 120); }
+  log('Game started');
 }
 
-/* ===== Physics, collisions & FX ===== */
-let BOUNCE_STRENGTH=1.25, INVULN_MS=1000;
-function crashFlash(sizeFactor=1.5){
-  const startT=performance.now();
-  (function anim(){ const t=(performance.now()-startT)/450; crashCtx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight); if (t>=1) return requestAnimationFrame(()=>crashCtx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight));
-    requestAnimationFrame(anim);
-    crashCtx.save(); crashCtx.globalAlpha=0.6*(1-t); crashCtx.fillStyle='rgba(255,0,0,0.6)'; const r=Math.max(canvas.clientWidth,canvas.clientHeight)*sizeFactor*t; crashCtx.beginPath(); crashCtx.arc(unicorn.x,unicorn.y,r,0,Math.PI*2); crashCtx.fill(); crashCtx.restore(); })();
+/* ========= Input ========= */
+function flap(){
+  unicorn.vy=Math.max(cfg.UP_CLAMP, unicorn.vy + cfg.FLAP);
+  fartBurst(22); sparkBurst(); shockwave();
+  // kurzer „Fart“-Ton
+  if (audioOn){ try{ elThrust.currentTime=0; elThrust.play().catch(()=>{}); }catch(_){ } }
+  // Fart-Time Impuls
+  if (!thrusting){ thrusting=true; fartStart=performance.now(); setTimeout(()=>{ if (thrusting){ endThrust(); } }, 90); }
+}
+function startThrust(){
+  if (unicorn.vy > cfg.UP_CLAMP*0.6) unicorn.vy += cfg.KICK;
+  if (audioOn){ try{ elThrust.play().catch(()=>{}); }catch(_){} }
+  if (!thrusting){ thrusting=true; fartStart=performance.now(); }
+}
+function endThrust(){
+  if (thrusting){
+    thrusting=false;
+    if (audioOn){ elThrust.pause(); }
+    if (fartStart!=null){ fartAccum += Math.max(0, performance.now()-fartStart); fartStart=null; }
+  }
+}
+function startAndBoost(kind){
+  if (!started || !running){ start(kind==='tap'?'tap':'hold'); return; }
+  if (paused){ setPaused(false); return; }
+}
+
+/* Maus/Touch */
+canvas.addEventListener('pointerdown', (e)=>{
+  if (!started||!running||paused){ startAndBoost(e.pointerType==='mouse'?'hold':'tap'); }
+  if (CONTROL_MODE==='tap') flap(); else { pointerDown=true; startThrust(); }
+});
+canvas.addEventListener('pointerup',   ()=>{ pointerDown=false; endThrust(); });
+canvas.addEventListener('pointerleave',()=>{ pointerDown=false; endThrust(); });
+/* Zwei-Finger-Pause */
+document.addEventListener('touchstart', (e)=>{ if (e.touches && e.touches.length===2){ setPaused(!paused); } }, {passive:true});
+
+/* Globaler Start bei erstem Klick/Key außerhalb Panel */
+function notInUI(t){ return !(t.closest && (t.closest('#settingsPanel')||t.closest('#gearBtn')||t.closest('#audioBtn'))); }
+document.body.addEventListener('pointerdown', (e)=>{ if (!started||!running||paused){ if (notInUI(e.target)) startAndBoost('tap'); } }, true);
+
+/* Keyboard */
+window.addEventListener('keydown', (e)=>{
+  const isSpace = (e.code==='Space' || e.key===' ' || e.key==='Spacebar');
+  if (isSpace){
+    e.preventDefault();
+    if (!started||!running||paused){ startAndBoost('hold'); }
+    if (CONTROL_MODE==='tap') flap(); else { spaceDown=true; startThrust(); }
+  }
+  if (e.key==='Enter'){ e.preventDefault(); startAndBoost('tap'); }
+});
+window.addEventListener('keyup', (e)=>{ const isSpace=(e.code==='Space'||e.key===' '||e.key==='Spacebar'); if (isSpace){ spaceDown=false; endThrust(); }});
+
+/* ========= Collision / Physics ========= */
+function bounceCrashFX(){
+  // roter Overlay-Blob, größer und fade
+  const fx = { x:unicorn.x, y:unicorn.y, r:14, a:0.55, life:22 };
+  (function anim(){
+    fx.r *= 1.5; fx.a *= 0.88; fx.life--;
+    ctx.save(); ctx.globalAlpha = Math.max(0, fx.a); ctx.fillStyle='red'; circle(fx.x,fx.y,fx.r,'red'); ctx.restore();
+    if (fx.life>0) requestAnimationFrame(anim);
+  })();
 }
 function collideWithPipe(p){
   const hbw=HIT_W/2, hbh=HIT_H/2;
   const overlapsX=(unicorn.x+hbw>p.x)&&(unicorn.x-hbw<p.x+p.w);
   if (!overlapsX) return false;
   const safeTop=p.top+GAP_PAD, safeBottom=p.top+p.gap-GAP_PAD;
-  const yTop = unicorn.y-hbh, yBottom=unicorn.y+hbh;
-  return (yTop < safeTop || yBottom > safeBottom);
-}
-function handleCollision(pipeId){
-  const nowt=performance.now();
-  if (nowt < invulnUntil) return;
-  if (lastHitPipeId === pipeId) return;
-  lastHitPipeId = pipeId;
-
-  lives=Math.max(0,lives-1); drawLives(); playCrash(); crashFlash(1.5);
-  unicorn.vy = -Math.max(4.2, Math.abs(unicorn.vy)*BOUNCE_STRENGTH);
-  shockwave(); sparkBurst(); fartBurst(14);
-  invulnUntil = nowt + INVULN_MS;
-  if (lives<=0) gameOver();
+  if ((unicorn.y-hbh)>=safeTop && (unicorn.y+hbh)<=safeBottom){ return false; } // im Gap → ok
+  // Crash
+  if (invuln>0) return true; // schon gezählt, trotzdem abprallen
+  lives = Math.max(0, lives-1);
+  if (audioOn){ try{ elOuch.currentTime=0; elOuch.play().catch(()=>{}); }catch(_){} }
+  invuln = 1000; // 1s Unverwundbarkeit
+  // Rückstoß
+  const dir = (unicorn.y < safeTop)? -1 : +1;
+  unicorn.vy = Math.min( -cfg.KICK*3, dir<0? -8: +8 );
+  unicorn.x -= 12;
+  bounceCrashFX();
+  return true;
 }
 
-/* ===== Idle / Pause / Game-over anim ===== */
-function drawSceneIdle(){ if (!unicorn) reset(); unicorn.t++; unicorn.y += Math.sin(unicorn.t/15)*0.4; for (const c of bgClouds) drawBgCloud(c); for (const p of pipes) drawObstacle(p); updateParticles(); drawParticles(); updateRings(); drawUnicorn(unicorn); }
-function drawPaused(){ for (const c of bgClouds) drawBgCloud(c); for (const p of pipes) drawObstacle(p); drawParticles(); drawRings(); drawUnicorn(unicorn); }
-function gameOverAnim(dt){
-  if (!dying) return;
-  dieT += dt/1100; unicorn.t++; fartStream(); updateParticles(); updateRings();
-  const cx=canvas.clientWidth*0.5, cy=canvas.clientHeight*0.45;
-  unicorn.x += (cx - unicorn.x)*0.06;
-  unicorn.y += (cy - unicorn.y)*0.08 + Math.sin(unicorn.t/6)*0.5;
-  unicorn.scale = 1 + dieT*7.2; unicorn.rot += 0.012;
-  for (const c of bgClouds) drawBgCloud(c); for (const p of pipes) drawObstacle(p);
-  drawParticles(); drawRings(); drawUnicorn(unicorn);
-
-  // fade out Game Over headline a bit später
-  if (dieT >= 1.3){ goBig.classList.remove('show'); }
-  if (dieT>=1.6){
-    running=false; started=true; lives=maxLives; drawLives();
-    goBig.classList.add('hidden'); goBig.setAttribute('aria-hidden','true');
-    overlay.style.display=''; overlay.classList.remove('hidden'); overlay.setAttribute('aria-hidden','false');
-    dying=false; stopThrustSound();
-  }
+/* ========= Scene Drawing ========= */
+function drawCloudBand(){
+  const grd=ctx.createLinearGradient(0,0,0,H()); grd.addColorStop(0,'#bde6ff'); grd.addColorStop(1,'#ffffff'); ctx.fillStyle=grd; ctx.fillRect(0,0,W(),H());
+}
+function drawSceneIdle(){
+  unicorn.t++;
+  positionUnicornForStart();
+  for(const p of pipes) drawObstacle(p);
+  updateParticles(); drawParticles(); updateRings(); drawUnicorn(unicorn);
+}
+function positionUnicornForStart(){
+  if (!startCard) return;
+  const card = startCard.getBoundingClientRect();
+  const frame = wrap.getBoundingClientRect();
+  const cx = frame.left + frame.width/2;
+  const slotY = card.top + 92; // Slot zwischen Title & Sub (angepasst auf neue Sub-Margin)
+  unicorn = unicorn || {x:0,y:0,vy:0,t:0,r:18};
+  unicorn.x = cx - frame.left;
+  unicorn.y = slotY - frame.top;
 }
 
-/* ===== Input actions ===== */
-function flap(){ unicorn.vy=Math.max(CFG.UP_CLAMP, unicorn.vy + CFG.FLAP); fartBurst(20); sparkBurst(); shockwave(); }
-function startThrust(){ if (unicorn.vy > CFG.UP_CLAMP*0.6) unicorn.vy += CFG.KICK; shockwave(); sparkBurst(); fartBurst(24); startThrustSound(); }
-
-/* ===== Main loop ===== */
-let raf, lastTick=performance.now();
+/* ========= Main Loop ========= */
+let raf;
 function loop(){
-  raf=requestAnimationFrame(loop);
-  const nowt=performance.now(), dt=Math.min(50, nowt-lastTick); lastTick=nowt;
+  raf = requestAnimationFrame(loop);
+  drawCloudBand();
 
-  ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
-  const grd=ctx.createLinearGradient(0,0,0,canvas.clientHeight); grd.addColorStop(0,'#bde6ff'); grd.addColorStop(1,'#ffffff'); ctx.fillStyle=grd; ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  // Runtime-Accu nur, wenn spielend & nicht pausiert
+  const now = performance.now();
+  if (running && !paused){
+    if (lastTick==null) lastTick = now;
+    runAccum += (now - lastTick);
+  }
+  lastTick = now;
 
-  if (paused){ drawPaused(); return; }
-  if (!running){ drawSceneIdle(); return; }
-  if (dying){ gameOverAnim(dt); return; }
-
-  runtimeMs += dt; if (fartingNow) fartMsAccum += dt; updateTimers();
+  if (!started){ if (!unicorn) reset(); drawSceneIdle(); updateHUD(); return; }
+  if (paused){ for(const p of pipes) drawObstacle(p); drawParticles(); drawRings(); drawUnicorn(unicorn); return; }
 
   unicorn.t++;
-  if (CONTROL_MODE==='hold'){ const want=(spaceDown||pointerDown); if (want && !thrusting){ startThrust(); } thrusting=want; }
-  const target=(CONTROL_MODE==='hold' && thrusting)? CFG.THRUST*VIEW.THRUST : 0;
-  thrustAcc += (target - thrustAcc)*CFG.THRUST_EASE;
-  unicorn.vy += (CFG.G*VIEW.GRAV) + thrustAcc;
-  unicorn.vy *= CFG.DRAG;
-  unicorn.vy = clamp(unicorn.vy, CFG.UP_CLAMP, CFG.MAX_VY);
+
+  // Hold thrust
+  if (CONTROL_MODE==='hold'){
+    const want = (spaceDown || pointerDown);
+    if (want && !thrusting){ startThrust(); }
+    if (!want && thrusting){ endThrust(); }
+    thrusting = want;
+  }
+
+  const target=(CONTROL_MODE==='hold' && thrusting)? cfg.THRUST*VIEW.THRUST:0;
+  thrustAcc += (target - thrustAcc)*cfg.THRUST_EASE;
+  unicorn.vy += (cfg.G*VIEW.GRAV) + thrustAcc;
+  unicorn.vy *= cfg.DRAG;
+  if (unicorn.vy < cfg.UP_CLAMP) unicorn.vy = cfg.UP_CLAMP;
+  if (unicorn.vy > cfg.MAX_VY) unicorn.vy = cfg.MAX_VY;
   unicorn.y += unicorn.vy;
-
   if (unicorn.y < 10){ unicorn.y=10; unicorn.vy=0; }
-  if (unicorn.y > canvas.clientHeight-22){ unicorn.y=canvas.clientHeight-22; handleCollision(-999); } // floor sentinel
+  if (unicorn.y > H()-22){ unicorn.y=H()-22; lives=0; updateHUD(); gameOver(); return; }
 
-  for (const c of bgClouds) drawBgCloud(c);
-
-  for (const p of pipes) p.x -= CFG.SPEED * VIEW.SPEED;
+  for (const p of pipes) p.x -= cfg.SPEED * VIEW.SPEED;
   if (pipes.length && pipes[0].x + pipes[0].w < -10) pipes.shift();
   tryAddPipes();
 
-  let hitId=null;
   for (const p of pipes){
     drawObstacle(p);
-    if (hitId===null && collideWithPipe(p)) hitId = p.id;
-    if (!p.scored && p.x+p.w < unicorn.x - (HIT_W/2)){ p.scored=true; score++; updateScore(); }
+    // Scoring
+    const hbw=HIT_W/2;
+    if (!p.scored && p.x+p.w < unicorn.x - hbw){ p.scored=true; score++; }
+    // Collision
+    const hit = collideWithPipe(p);
+    if (hit && lives===0){ updateHUD(); gameOver(); return; }
   }
-  if (hitId!==null) handleCollision(hitId);
-
-  /* Beans */
-  updateBeans(dt);
-  for (const b of beans){
-    if (b.x > -20 && b.x < W()+20) drawBean(b);
-    if (!b.exploding && lives < maxLives && b.x>-20 && b.x < W()+20){
-      const hbw=HIT_W/2, hbh=HIT_H/2;
-      const hoverY = b.y + Math.sin(b.t)*BEAN_HOVER;
-      const dx = clamp(unicorn.x, b.x-12, b.x+12) - b.x;
-      const dy = clamp(unicorn.y, hoverY-12, hoverY+12) - hoverY;
-      const near = (dx*dx + dy*dy) < ((b.r+6)*(b.r+6));
-      if (near){
-        b.exploding=true; b.et=0; playPickup(); launchHeartFrom(unicorn.x, unicorn.y); lives=Math.min(maxLives, lives+1); drawLives();
-      }
-    }
-  }
-
-  updateFlyHearts(dt);
 
   updateParticles(); drawParticles(); updateRings(); drawUnicorn(unicorn);
+  updateHUD();
 }
-reset(); syncTuningFromCfg(); loop();
 
-/* Auto-pause on hidden */
-document.addEventListener('visibilitychange', ()=>{ if (document.hidden && running) setPaused(true); });
+/* ========= Boot ========= */
+function init(){
+  computeViewTuning(); fit(); reset(); syncSliders(); loop();
+  toggleAudio(false);
+  log('Boot complete');
+}
+init();
 
-/* Minimal smoke tests */
-(function(){
-  const r=wrap.getBoundingClientRect();
-  console.log(`%c[TEST] fit ok: ${(r.width>0 && r.height>0)?'PASS':'FAIL'}`, 'color:#07a35a;font-weight:700');
-  console.log(`%c[TEST] overlay visible (start): ${ !overlay.classList.contains('hidden') ? 'PASS' : 'FAIL (hidden)' }`, 'color:#07a35a;font-weight:700');
-})();
+/* ========= Settings: Öffnen via S pausiert, Schließen belässt Pause ========= */
+document.addEventListener('pointerdown',(e)=>{
+  const inside = e.target.closest && e.target.closest('#settingsPanel');
+  if (panel && !panel.classList.contains('hidden') && !inside && e.target!==gearBtn){
+    panel.classList.add('hidden'); gearBtn.setAttribute('aria-expanded','false'); /* bleibt pausiert */
+  }
+});
+
+/* ========= Public simple tests ========= */
+window.FU = {
+  runTests(){
+    const results=[];
+    const assert=(name,cond)=>results.push((cond?'✅':'❌')+' '+name);
+    // Startscreen zeigt Zeit 00:00.0
+    assert('runtime gated at start', timePill.textContent.includes('00:00.0'));
+    // Settings öffnen pausiert
+    togglePanel(true); assert('panel opens', !panel.classList.contains('hidden')); assert('paused on open', paused===true);
+    // Schließen belässt Pause
+    togglePanel(false); assert('panel closes', panel.classList.contains('hidden')); assert('still paused', paused===true);
+    // Start löst aus & schiebt Schub
+    setPaused(false); start('tap'); assert('started', started&&running); assert('overlay hidden', overlay.classList.contains('hidden'));
+    console.log('[Farty TESTS]', '\n'+results.join('\n'));
+  }
+};
 })();
 </script>
 </body>
